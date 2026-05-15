@@ -29,23 +29,36 @@ export interface CheckoutInput {
   customer_name: string;
   customer_email: string;
   customer_phone: string;
+  customer_gender: string;
   ticket_type: string;
   
-  // Field Survei
-  survey_age: string;
-  survey_city: string;
-  survey_education: string;
-  survey_job: string;
-  survey_motivation: string;
-  survey_action: string;
+  // Data Profil (Menggantikan Survei Lama)
+  profile_age: string;
+  profile_city: string;
+  profile_education: string;
+  profile_job: string;
+  community_affiliation: string;
+  information_source: string;
+  
+  // Kuesioner Multiple Choice (Disimpan sebagai Array di form)
+  interest_reasons: string[];
+  sustainability_steps: string[];
+  
+  // Undangan Kontribusi
+  contribution_role: string;
 
   voucher_code?: string;
   attendees: Attendee[]; 
 }
 
+// Respons dari API Checkout Manual
 export interface CheckoutResponse {
+  message: string;
   order_id: string;
-  snap_token: string;
+  total_amount: number;
+  unique_code: number;
+  session_batch: number;
+  expires_at: string;
 }
 
 // Representasi individual tiket
@@ -75,18 +88,33 @@ export interface Transaction {
   customer_name: string;
   customer_email: string;
   customer_phone: string;
+  customer_gender: string;
+  
+  // Data Profil Tambahan
+  profile_age: string;
+  profile_city: string;
+  profile_education: string;
+  profile_job: string;
+  community_affiliation: string;
+  information_source: string;
+
+  // Hasil Kuesioner (String digabung koma dari Backend)
+  interest_reasons: string;
+  sustainability_steps: string;
+  
+  contribution_role: string;
+
+  // Manual Payment System
   total_amount: number; 
-  status: 'pending' | 'settlement' | 'cancel' | 'expire';
+  unique_code: number;
+  session_batch: number;
+  payment_proof_url?: string;
+  expires_at: string;
+
+  // Penambahan status 'waiting_verification'
+  status: 'pending' | 'waiting_verification' | 'settlement' | 'cancel' | 'expire';
   created_at: string;
   
-  // PR-03: Penambahan Tipe Data Survei yang dikirim Backend
-  survey_age: string;
-  survey_city: string;
-  survey_education: string;
-  survey_job: string;
-  survey_motivation: string;
-  survey_action: string;
-
   tickets?: Ticket[]; 
   voucher?: Voucher;  
 }
@@ -113,4 +141,5 @@ export interface DashboardStats {
   total_revenue: number;
   total_tickets: number;
   scanned_tickets: number;
+  waiting_verification: number; // Tambahan metrik beban kerja admin
 }

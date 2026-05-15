@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../../services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api, transactionService } from '../../services/api';
 import type { Transaction } from '../../types';
-import { Search, Loader2, FileX, Tag, ChevronDown, ChevronUp, Users, ClipboardList, Download } from 'lucide-react';
+import { Search, Loader2, FileX, Tag, ChevronDown, ChevronUp, Users, ClipboardList, Download, Image as ImageIcon, CheckCircle, XCircle } from 'lucide-react';
 import { formatRupiah, escapeCsv } from '../../utils/formatters';
 import { toast } from 'react-hot-toast';
 
 export default function TransactionPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  
-  // State untuk melacak baris mana yang sedang di-expand (dilebarkan)
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  
+  const queryClient = useQueryClient();
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -29,62 +29,81 @@ export default function TransactionPage() {
     },
   });
 
+  // Mutasi untuk aksi Approve / Reject
+  const verifyMutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) => 
+      transactionService.verifyPayment(id, action),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] }); // Update dashboard
+      
+      if (variables.action === 'approve') {
+        toast.success('Pembayaran disetujui. Tiket sedang dikirim ke email!');
+      } else {
+        toast.error('Pembayaran ditolak. Status dibatalkan.');
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Gagal memverifikasi pembayaran');
+    }
+  });
+
   const toggleRow = (id: string) => {
     setExpandedRowId(prev => prev === id ? null : id);
   };
 
-  // PR-05: Fungsi Ajaib Download CSV (Export ke Excel)
   const handleDownloadCsv = () => {
     if (!transactions || transactions.length === 0) {
       toast.error('Tidak ada data untuk diunduh');
       return;
     }
 
-    // 1. Definisikan Header CSV
     const headers = [
-      'Order ID', 'Waktu Transaksi', 'Status', 'Total Bayar', 'Kode Voucher', 'Jumlah Tiket',
-      'Nama Pemesan', 'Email Pemesan', 'No WhatsApp',
-      'Usia', 'Domisili', 'Pendidikan', 'Pekerjaan', 'Motivasi Mengikuti', 'Aksi Sustainable',
+      'Order ID', 'Waktu Transaksi', 'Status', 'Sesi/Batch', 'Total Bayar', 'Kode Unik', 'Kode Voucher', 'Jumlah Tiket',
+      'Nama Pemesan', 'Email Pemesan', 'No WhatsApp', 'Gender',
+      'Usia', 'Domisili', 'Pendidikan', 'Pekerjaan', 'Asal Komunitas', 'Info Acara',
+      'Alasan Ketertarikan', 'Langkah Keberlanjutan', 'Peran Kontribusi',
       'Daftar Pemegang Tiket'
     ];
 
-    // 2. Petakan data ke dalam baris CSV
-    const csvRows = [headers.join(',')]; // Baris pertama adalah header
+    const csvRows = [headers.join(',')]; 
 
     transactions.forEach(trx => {
-      // Kita gabungkan nama pemegang tiket menjadi satu string terpisah koma
       const attendeeNames = trx.tickets?.map(t => t.attendee_name).join(' | ') || '-';
       
       const rowData = [
         trx.id,
         new Date(trx.created_at).toLocaleString('id-ID'),
         trx.status,
+        trx.session_batch || 1,
         trx.total_amount,
+        trx.unique_code || 0,
         trx.voucher?.code || '-',
         trx.tickets?.length || 0,
         trx.customer_name,
         trx.customer_email,
-        `'${trx.customer_phone}`, // Kutip tunggal agar Excel tidak merusaknya menjadi rumus/angka ilmiah
-        trx.survey_age || '-',
-        trx.survey_city || '-',
-        trx.survey_education || '-',
-        trx.survey_job || '-',
-        trx.survey_motivation || '-',
-        trx.survey_action || '-',
+        `'${trx.customer_phone}`, 
+        trx.customer_gender || '-',
+        trx.profile_age || '-',
+        trx.profile_city || '-',
+        trx.profile_education || '-',
+        trx.profile_job || '-',
+        trx.community_affiliation || '-',
+        trx.information_source || '-',
+        trx.interest_reasons || '-',
+        trx.sustainability_steps || '-',
+        trx.contribution_role || '-',
         attendeeNames
       ];
 
-      // Format setiap sel agar aman untuk CSV (membungkus yang ada komanya)
       const formattedRow = rowData.map(cell => escapeCsv(cell as string)).join(',');
       csvRows.push(formattedRow);
     });
 
-    // 3. Gabungkan semua baris menjadi satu teks besar (Blob)
     const csvContent = csvRows.join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
-    // 4. Proses Trigger Download (Klik bayangan)
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', `SMILE_FEST_Transactions_${new Date().toISOString().split('T')[0]}.csv`);
@@ -98,8 +117,10 @@ export default function TransactionPage() {
     switch (status) {
       case 'settlement':
         return <span className="px-3 py-1 bg-ringkai-olive/10 text-ringkai-success text-xs font-semibold rounded-full uppercase tracking-wider border border-ringkai-success/20">Lunas</span>;
+      case 'waiting_verification':
+        return <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full uppercase tracking-wider border border-blue-200 animate-pulse">Perlu Cek</span>;
       case 'pending':
-        return <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full uppercase tracking-wider border border-amber-200">Tertunda</span>;
+        return <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full uppercase tracking-wider border border-amber-200">Menunggu</span>;
       case 'expire':
       case 'cancel':
         return <span className="px-3 py-1 bg-red-100 text-ringkai-danger text-xs font-semibold rounded-full uppercase tracking-wider border border-red-200">Batal</span>;
@@ -113,7 +134,7 @@ export default function TransactionPage() {
       <div className="flex flex-col md:flex-row justify-between md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-serif mb-2">Riwayat Transaksi</h1>
-          <p className="text-stone-500 text-sm tracking-wide">Lacak pesanan, lihat detail peserta, dan unduh laporan kuesioner.</p>
+          <p className="text-stone-500 text-sm tracking-wide">Lacak pesanan, verifikasi pembayaran manual, dan unduh laporan.</p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
@@ -173,6 +194,11 @@ export default function TransactionPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-medium text-sm font-mono text-stone-600 block">{trx.id}</span>
+                        {trx.session_batch && (
+                          <span className="inline-block mt-1 px-2 py-0.5 bg-stone-100 text-stone-500 text-[10px] rounded-sm font-semibold uppercase tracking-wider">
+                            Sesi {trx.session_batch}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <p className="font-medium text-ringkai-text">{trx.customer_name}</p>
@@ -197,71 +223,125 @@ export default function TransactionPage() {
                       </td>
                     </tr>
 
-                    {/* PR-04: Baris Detail yang Dilebarkan (Expandable Row) */}
+                    {/* Baris Detail yang Dilebarkan (Expandable Row) */}
                     {expandedRowId === trx.id && (
                       <tr className="bg-stone-50/50 border-b-2 border-stone-100">
                         <td colSpan={6} className="px-6 py-6">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-top-2 duration-200">
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in slide-in-from-top-2 duration-200">
                             
-                            {/* Panel Kiri: Data Kuesioner/Survei */}
-                            <div className="space-y-4">
+                            {/* Panel Kiri: Data Profil & Kuesioner (Lebar 2 Kolom) */}
+                            <div className="space-y-4 lg:col-span-2">
                               <div className="flex items-center gap-2 text-stone-800 font-serif font-medium border-b border-stone-200 pb-2">
-                                <ClipboardList className="w-4 h-4 text-ringkai-olive" /> Data Survei & Demografi
+                                <ClipboardList className="w-4 h-4 text-ringkai-olive" /> Profil Pemesan & Kontribusi
                               </div>
-                              <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                 <div>
                                   <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-0.5">Usia</p>
-                                  <p className="text-stone-700">{trx.survey_age || '-'}</p>
+                                  <p className="text-stone-700">{trx.profile_age || '-'}</p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-0.5">Domisili</p>
-                                  <p className="text-stone-700">{trx.survey_city || '-'}</p>
+                                  <p className="text-stone-700">{trx.profile_city || '-'}</p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-0.5">Pendidikan</p>
-                                  <p className="text-stone-700">{trx.survey_education || '-'}</p>
+                                  <p className="text-stone-700">{trx.profile_education || '-'}</p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-0.5">Pekerjaan</p>
-                                  <p className="text-stone-700">{trx.survey_job || '-'}</p>
+                                  <p className="text-stone-700">{trx.profile_job || '-'}</p>
                                 </div>
-                                <div className="col-span-2">
-                                  <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-0.5">Motivasi</p>
-                                  <p className="text-stone-700">{trx.survey_motivation || '-'}</p>
+
+                                <div className="col-span-2 md:col-span-4">
+                                  <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-1">Ketertarikan Utama</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {trx.interest_reasons && trx.interest_reasons !== '-' ? trx.interest_reasons.split(',').map((reason, i) => (
+                                      <span key={i} className="px-2.5 py-1 bg-white border border-stone-200 rounded-md text-[11px] text-stone-600 font-medium">
+                                        {reason.trim()}
+                                      </span>
+                                    )) : <span className="text-stone-500 text-xs">-</span>}
+                                  </div>
                                 </div>
-                                <div className="col-span-2">
-                                  <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-0.5">Aksi Mindful</p>
-                                  <p className="text-stone-700">{trx.survey_action || '-'}</p>
+
+                                <div className="col-span-2 md:col-span-4">
+                                  <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-1">Langkah Keberlanjutan Saat Ini</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {trx.sustainability_steps && trx.sustainability_steps !== '-' ? trx.sustainability_steps.split(',').map((step, i) => (
+                                      <span key={i} className="px-2.5 py-1 bg-ringkai-olive/10 border border-ringkai-olive/20 rounded-md text-[11px] text-ringkai-olive font-medium">
+                                        {step.trim()}
+                                      </span>
+                                    )) : <span className="text-stone-500 text-xs">-</span>}
+                                  </div>
+                                </div>
+
+                                <div className="col-span-2 md:col-span-4 pt-2">
+                                  <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-1">Kesediaan Kontribusi</p>
+                                  <span className="inline-block px-3 py-1 bg-stone-800 rounded-full text-xs text-white font-medium shadow-sm">
+                                    {trx.contribution_role || '-'}
+                                  </span>
                                 </div>
                               </div>
                             </div>
 
-                            {/* Panel Kanan: Daftar Multi-Tiket & Kontak */}
-                            <div className="space-y-4">
-                              <div className="flex items-center gap-2 text-stone-800 font-serif font-medium border-b border-stone-200 pb-2">
-                                <Users className="w-4 h-4 text-ringkai-olive" /> Rincian Tiket & Kontak
-                              </div>
-                              <div className="text-sm space-y-3">
-                                <div>
-                                  <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-0.5">No. WhatsApp / Kontak</p>
-                                  <p className="text-stone-700">{trx.customer_phone}</p>
+                            {/* Panel Kanan: Daftar Tiket & Verifikasi */}
+                            <div className="space-y-6">
+                              <div className="space-y-4">
+                                <div className="flex items-center gap-2 text-stone-800 font-serif font-medium border-b border-stone-200 pb-2">
+                                  <Users className="w-4 h-4 text-ringkai-olive" /> Rincian Tiket & Kontak
                                 </div>
-                                <div>
-                                  <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-1.5">Daftar Pemegang Tiket ({trx.tickets?.length || 0})</p>
-                                  <ul className="space-y-1.5">
-                                    {trx.tickets?.map((t, idx) => (
-                                      <li key={t.id} className="flex items-center justify-between bg-white px-3 py-2 border border-stone-200 rounded-lg shadow-sm">
-                                        <span className="font-medium text-stone-700 text-xs">{idx + 1}. {t.attendee_name}</span>
-                                        <span className={`text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full ${t.is_scanned ? 'bg-ringkai-olive/10 text-ringkai-olive' : 'bg-stone-100 text-stone-400'}`}>
-                                          {t.is_scanned ? 'Masuk' : 'Belum'}
-                                        </span>
-                                      </li>
-                                    ))}
-                                  </ul>
+                                <div className="text-sm space-y-3">
+                                  <div>
+                                    <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-0.5">No. WhatsApp</p>
+                                    <p className="text-stone-700">{trx.customer_phone}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider mb-1.5">Daftar Pemegang Tiket ({trx.tickets?.length || 0})</p>
+                                    <ul className="space-y-1.5">
+                                      {trx.tickets?.map((t, idx) => (
+                                        <li key={t.id} className="flex items-center justify-between bg-white px-3 py-2 border border-stone-200 rounded-lg shadow-sm">
+                                          <span className="font-medium text-stone-700 text-xs">{idx + 1}. {t.attendee_name}</span>
+                                          <span className={`text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full ${t.is_scanned ? 'bg-ringkai-olive/10 text-ringkai-olive' : 'bg-stone-100 text-stone-400'}`}>
+                                            {t.is_scanned ? 'Masuk' : 'Belum'}
+                                          </span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
+                              {/* PANEL VERIFIKASI PEMBAYARAN MANUAL */}
+                              <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm space-y-3">
+                                <p className="text-xs text-stone-400 font-semibold uppercase tracking-wider">Bukti Pembayaran</p>
+                                {trx.payment_proof_url ? (
+                                  <a href={trx.payment_proof_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg transition-colors text-sm font-medium">
+                                    <ImageIcon className="w-4 h-4" /> Lihat Foto Bukti
+                                  </a>
+                                ) : (
+                                  <p className="text-sm text-stone-500 italic text-center py-2 bg-stone-50 rounded-lg">Belum ada bukti diunggah</p>
+                                )}
+
+                                {trx.status === 'waiting_verification' && (
+                                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-100">
+                                    <button
+                                      onClick={() => verifyMutation.mutate({ id: trx.id, action: 'reject' })}
+                                      disabled={verifyMutation.isPending}
+                                      className="flex items-center justify-center gap-1.5 py-2 bg-red-50 hover:bg-red-100 text-ringkai-danger text-xs font-semibold rounded-lg transition-colors border border-red-100"
+                                    >
+                                      <XCircle className="w-4 h-4" /> Tolak
+                                    </button>
+                                    <button
+                                      onClick={() => verifyMutation.mutate({ id: trx.id, action: 'approve' })}
+                                      disabled={verifyMutation.isPending}
+                                      className="flex items-center justify-center gap-1.5 py-2 bg-ringkai-olive hover:bg-stone-800 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                                    >
+                                      <CheckCircle className="w-4 h-4" /> Setujui
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                            </div>
                           </div>
                         </td>
                       </tr>

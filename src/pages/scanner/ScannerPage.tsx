@@ -211,7 +211,7 @@ export default function ScannerPage() {
                   type="text"
                   value={manualId}
                   onChange={(e) => setManualId(e.target.value)}
-                  placeholder="Ketik UUID Tiket (Contoh: 123e4567...)"
+                  placeholder="UUID Tiket"
                   className="w-full bg-stone-50 border border-stone-200 p-4 text-center text-stone-800 tracking-widest rounded-xl focus:border-ringkai-olive transition-colors outline-none font-mono"
                 />
                 <button 

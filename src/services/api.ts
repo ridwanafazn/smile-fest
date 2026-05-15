@@ -48,3 +48,26 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// --- MANUAL PAYMENT SERVICES ---
+// Memisahkan fungsi khusus yang membutuhkan konfigurasi header berbeda
+export const transactionService = {
+  // Upload bukti bayar dengan multipart/form-data
+  uploadProof: async (orderId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    return api.post(`/api/transactions/${orderId}/upload-proof`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      // Timeout diperpanjang khusus untuk upload file besar
+      timeout: 30000, 
+    });
+  },
+  
+  // Verifikasi manual oleh Admin
+  verifyPayment: async (orderId: string, action: 'approve' | 'reject') => {
+    return api.put(`/api/admin/transactions/${orderId}/verify`, { action });
+  }
+};
