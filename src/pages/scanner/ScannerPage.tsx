@@ -3,7 +3,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { toast } from 'react-hot-toast';
 import { api } from '../../services/api';
 import type { ValidateTicketResponse, ScannerStats } from '../../types';
-import { Keyboard, Camera, CheckCircle2, XCircle, Info, BarChart3 } from 'lucide-react';
+import { Keyboard, Camera, CheckCircle2, XCircle, Info, BarChart3, CameraOff } from 'lucide-react';
 
 type TabMode = 'dashboard' | 'camera' | 'manual';
 
@@ -13,11 +13,14 @@ export default function ScannerPage() {
   const [isError, setIsError] = useState(false);
   const [manualId, setManualId] = useState('');
   const [activeTab, setActiveTab] = useState<TabMode>('dashboard');
+  
+  // TAHAP 3: State untuk melacak apakah izin kamera ditolak
+  const [cameraDenied, setCameraDenied] = useState(false);
 
   const fetchStats = async () => {
     try {
       const res = await api.get<{message: string, data: ScannerStats}>('/api/scanner/stats');
-      setStats(res.data.data); // Unboxing JSON
+      setStats(res.data.data); 
     } catch (e) {
       console.error('Gagal mengambil statistik scanner');
     }
@@ -25,31 +28,47 @@ export default function ScannerPage() {
 
   useEffect(() => {
     fetchStats();
-    // Auto-refresh stats tiap 10 detik di background
     const interval = setInterval(fetchStats, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // Inisialisasi scanner HANYA ketika tab kamera aktif
+  // Inisialisasi scanner dengan deteksi Permission
   useEffect(() => {
     if (activeTab !== 'camera') return;
 
-    const scanner = new Html5QrcodeScanner(
-      "reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      /* verbose= */ false
-    );
+    let scanner: Html5QrcodeScanner | null = null;
 
-    scanner.render(onScanSuccess, (_err) => {
-      // Diamkan error scan berkelanjutan agar tidak spam konsol
-    });
+    // Cek Permission Kamera terlebih dahulu
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then((stream) => {
+        // Matikan stream sementara agar tidak bentrok dengan library scanner
+        stream.getTracks().forEach(track => track.stop());
+        setCameraDenied(false);
+
+        // Render Scanner jika izin diberikan
+        scanner = new Html5QrcodeScanner(
+          "reader",
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          false
+        );
+
+        scanner.render(onScanSuccess, (_err) => {
+          // Diamkan error frame
+        });
+      })
+      .catch((err) => {
+        console.error("Camera permission denied:", err);
+        setCameraDenied(true); // Pemicu render UI Peringatan
+      });
 
     async function onScanSuccess(decodedText: string) {
       handleValidation(decodedText);
     }
 
     return () => {
-      scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+      if (scanner) {
+        scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+      }
     };
   }, [activeTab]);
 
@@ -143,11 +162,27 @@ export default function ScannerPage() {
 
         {/* TAB 2: CAMERA SCANNER */}
         {activeTab === 'camera' && (
-          <div className="w-full h-full flex flex-col bg-black animate-in fade-in duration-300">
-             <div id="reader" className="w-full flex-1"></div>
-             <div className="p-4 text-center bg-stone-900 border-t border-stone-800">
-                <p className="text-xs text-stone-400 italic tracking-wide">Posisikan QR Code di dalam kotak untuk memindai otomatis</p>
-             </div>
+          <div className="w-full h-full flex flex-col bg-black animate-in fade-in duration-300 relative">
+             {cameraDenied ? (
+               // TAHAP 3: UI Fallback Jika Izin Kamera Ditolak
+               <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-stone-900 z-10">
+                 <CameraOff className="w-16 h-16 text-stone-600 mb-4" />
+                 <h3 className="text-xl font-serif text-white mb-2">Akses Kamera Ditolak</h3>
+                 <p className="text-stone-400 text-sm mb-6 max-w-xs">
+                   Sistem tidak dapat mengaktifkan pemindai. Silakan klik ikon <strong className="text-white">Gembok</strong> di bagian atas browser Anda (URL bar), pilih <strong>Izinkan Kamera</strong>, lalu muat ulang halaman ini.
+                 </p>
+                 <button onClick={() => window.location.reload()} className="px-6 py-3 bg-stone-700 hover:bg-stone-600 text-white rounded-xl font-medium transition-colors">
+                   Muat Ulang Halaman
+                 </button>
+               </div>
+             ) : (
+               <>
+                 <div id="reader" className="w-full flex-1 bg-black"></div>
+                 <div className="p-4 text-center bg-stone-900 border-t border-stone-800">
+                    <p className="text-xs text-stone-400 italic tracking-wide">Posisikan QR Code di dalam kotak untuk memindai otomatis</p>
+                 </div>
+               </>
+             )}
           </div>
         )}
 
@@ -183,7 +218,7 @@ export default function ScannerPage() {
           </div>
         )}
 
-        {/* Massive Feedback Overlay (Z-Index tertinggi menutupi semua tab) */}
+        {/* Massive Feedback Overlay */}
         {lastResult && (
           <div className={`absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-50 animate-in fade-in zoom-in duration-300 ${isError ? 'bg-ringkai-danger' : 'bg-ringkai-success'}`}>
             {isError ? <XCircle className="w-24 h-24 mb-6 text-white" /> : <CheckCircle2 className="w-24 h-24 mb-6 text-white" />}

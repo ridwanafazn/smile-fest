@@ -30,8 +30,17 @@ export interface CheckoutInput {
   customer_email: string;
   customer_phone: string;
   ticket_type: string;
+  
+  // Field Survei
+  survey_age: string;
+  survey_city: string;
+  survey_education: string;
+  survey_job: string;
+  survey_motivation: string;
+  survey_action: string;
+
   voucher_code?: string;
-  attendees: Attendee[]; // Menampung daftar nama pemegang tiket
+  attendees: Attendee[]; 
 }
 
 export interface CheckoutResponse {
@@ -39,7 +48,7 @@ export interface CheckoutResponse {
   snap_token: string;
 }
 
-// Representasi individual tiket (sekarang 1 transaksi bisa punya banyak tiket ini)
+// Representasi individual tiket
 export interface Ticket {
   id: string;
   transaction_id: string;
@@ -56,21 +65,21 @@ export interface Voucher {
   code: string;
   discount_amount: number;
   quota: number;
-  usage_count: number; // Disinkronkan dengan backend
+  usage_count: number; 
   is_active: boolean;
 }
 
 // --- TRANSACTION ---
 export interface Transaction {
-  id: string; // Order ID (SMILE-xxx)
+  id: string; 
   customer_name: string;
   customer_email: string;
   customer_phone: string;
-  total_amount: number; // PERBAIKAN: Menggantikan gross_amount
+  total_amount: number; 
   status: 'pending' | 'settlement' | 'cancel' | 'expire';
   created_at: string;
-  tickets?: Ticket[]; // Preload relasi tiket
-  voucher?: Voucher;  // Preload data diskon (opsional)
+  tickets?: Ticket[]; 
+  voucher?: Voucher;  
 }
 
 // --- SCANNER ---
@@ -80,7 +89,7 @@ export interface ValidateTicketInput {
 
 export interface ValidateTicketResponse {
   ticket_id: string;
-  customer_name: string; // Diambil dari attendee_name
+  customer_name: string; 
   message: string;
 }
 
