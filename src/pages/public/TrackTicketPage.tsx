@@ -6,7 +6,7 @@ import * as z from 'zod';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'react-hot-toast';
 import { api } from '../../services/api';
-import { Search, Loader2, AlertCircle, CalendarClock, User, Download, Share2, CreditCard } from 'lucide-react';
+import { Search, Loader2, AlertCircle, CalendarClock, User, Download, Share2, CreditCard, XCircle } from 'lucide-react';
 import type { Ticket } from '../../types';
 
 declare global {
@@ -27,7 +27,7 @@ interface TrackResponse {
   customer_name: string;
   tickets?: Ticket[]; 
   status: string;
-  snap_token?: string; // TAHAP 2: Menangkap Snap Token untuk fitur Resume Payment
+  snap_token?: string; 
 }
 
 export default function TrackTicketPage() {
@@ -37,11 +37,11 @@ export default function TrackTicketPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [pollingMessage, setPollingMessage] = useState('');
 
-  const { register, handleSubmit, setValue, formState: { errors } } = useForm<TrackForm>({
+  // Menggunakan 'reset' alih-alih 'setValue' agar form terganti secara absolut
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<TrackForm>({
     resolver: zodResolver(trackSchema),
   });
 
-  // TAHAP 2: Inisialisasi Script Midtrans Snap di halaman pelacakan
   useEffect(() => {
     const snapScript = 'https://app.sandbox.midtrans.com/snap/snap.js'; 
     const clientKey = import.meta.env.VITE_MIDTRANS_CLIENT_KEY || 'SB-Mid-client-XXXXX'; 
@@ -56,15 +56,20 @@ export default function TrackTicketPage() {
     };
   }, []);
 
+  // PERBAIKAN: Native URL Reading untuk mencegah Race Condition React Router
   useEffect(() => {
-    const urlOrderId = searchParams.get('order_id');
-    const urlEmail = searchParams.get('email');
+    // Membaca langsung dari browser, bukan menunggu state React Router
+    const params = new URLSearchParams(window.location.search);
+    const urlOrderId = params.get('order_id');
+    const urlEmail = params.get('email');
+    
     if (urlOrderId && urlEmail) {
-      setValue('order_id', urlOrderId);
-      setValue('email', urlEmail);
+      // Memaksa form terisi penuh dan merender ulang
+      reset({ order_id: urlOrderId, email: urlEmail });
       fetchTicket(urlOrderId, urlEmail, 1);
     }
-  }, [searchParams]);
+    // Dependency array kosong sengaja agar hanya jalan mutlak 1x saat pertama mount
+  }, []); 
 
   const fetchTicket = async (order_id: string, email: string, attempt: number) => {
     setIsLoading(true);
@@ -73,8 +78,12 @@ export default function TrackTicketPage() {
     try {
       const res = await api.get('/api/tickets/track', { params: { order_id, email } });
       const payload: TrackResponse = res.data.data; 
-      const expectedStatus = searchParams.get('transaction_status');
+      
+      // Ambil expectedStatus juga dari native untuk keamanan ganda
+      const nativeParams = new URLSearchParams(window.location.search);
+      const expectedStatus = nativeParams.get('transaction_status');
 
+      // Polling Logic: Jika user baru bayar, Midtrans webhook mungkin butuh 2-5 detik untuk sampai ke Backend
       if (expectedStatus === 'settlement' && payload.status === 'pending' && attempt <= 3) {
         setPollingMessage(`Memverifikasi pembayaran dengan bank... (Percobaan ${attempt}/3)`);
         setTimeout(() => fetchTicket(order_id, email, attempt + 1), 3000); 
@@ -96,13 +105,12 @@ export default function TrackTicketPage() {
     fetchTicket(data.order_id, data.email, 1);
   };
 
-  // TAHAP 2: Fungsi Memanggil Ulang Popup Pembayaran Midtrans (Resume Payment)
   const handleResumePayment = () => {
     if (window.snap && ticketData?.snap_token) {
       window.snap.pay(ticketData.snap_token, {
         onSuccess: function() {
           toast.success('Pembayaran berhasil!');
-          fetchTicket(ticketData.order_id, searchParams.get('email') || '', 1);
+          fetchTicket(ticketData.order_id, ticketData.email || '', 1);
         },
         onPending: function() {
           toast.success('Silakan selesaikan instruksi pembayaran.');
@@ -183,8 +191,10 @@ export default function TrackTicketPage() {
                 <h2 className="text-xl font-serif mt-1">Atas Nama: {ticketData.customer_name}</h2>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`px-4 py-2 rounded-full text-xs font-bold tracking-widest uppercase ${ticketData.status === 'settlement' ? 'bg-ringkai-success/10 text-ringkai-success' : 'bg-amber-100 text-amber-700'}`}>
-                  {ticketData.status === 'settlement' ? 'LUNAS' : 'PENDING'}
+                <span className={`px-4 py-2 rounded-full text-xs font-bold tracking-widest uppercase 
+                  ${ticketData.status === 'settlement' ? 'bg-ringkai-success/10 text-ringkai-success' : 
+                    ticketData.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                  {ticketData.status === 'settlement' ? 'LUNAS' : ticketData.status === 'pending' ? 'PENDING' : 'BATAL'}
                 </span>
                 {ticketData.status === 'settlement' && (
                   <button onClick={shareTicket} className="p-2 bg-stone-100 text-stone-600 rounded-full hover:bg-stone-200 transition-colors" title="Bagikan Tautan">
@@ -194,8 +204,8 @@ export default function TrackTicketPage() {
               </div>
             </div>
 
-            {/* TAHAP 2: Penanganan Jika Status Masih Pending (Resume Payment) */}
-            {ticketData.status !== 'settlement' ? (
+            {/* Render Logika Berdasarkan Status */}
+            {ticketData.status === 'pending' ? (
               <div className="bg-amber-50 border border-amber-200 rounded-3xl p-8 text-center shadow-soft flex flex-col items-center justify-center">
                  <CalendarClock className="w-16 h-16 mb-4 text-amber-500 opacity-80" />
                  <h3 className="text-xl font-serif mb-2 text-amber-800">Menunggu Pembayaran</h3>
@@ -209,6 +219,12 @@ export default function TrackTicketPage() {
                      <CreditCard className="w-5 h-5" /> Lanjutkan Pembayaran
                    </button>
                  )}
+              </div>
+            ) : ticketData.status === 'expire' || ticketData.status === 'cancel' ? (
+               <div className="bg-red-50 border border-red-200 rounded-3xl p-8 text-center shadow-soft flex flex-col items-center justify-center">
+                 <XCircle className="w-16 h-16 mb-4 text-red-500 opacity-80" />
+                 <h3 className="text-xl font-serif mb-2 text-red-800">Pesanan Dibatalkan / Kedaluwarsa</h3>
+                 <p className="text-red-700/80 max-w-md">Batas waktu pembayaran pesanan ini telah habis atau dibatalkan. Silakan lakukan pemesanan ulang.</p>
               </div>
             ) : (
               // Tampilan Multi-Tiket Lunas
