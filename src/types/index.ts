@@ -78,6 +78,15 @@ export interface Transaction {
   total_amount: number; 
   status: 'pending' | 'settlement' | 'cancel' | 'expire';
   created_at: string;
+  
+  // PR-03: Penambahan Tipe Data Survei yang dikirim Backend
+  survey_age: string;
+  survey_city: string;
+  survey_education: string;
+  survey_job: string;
+  survey_motivation: string;
+  survey_action: string;
+
   tickets?: Ticket[]; 
   voucher?: Voucher;  
 }

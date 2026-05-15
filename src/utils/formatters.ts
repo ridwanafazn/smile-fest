@@ -29,3 +29,18 @@ export const truncateText = (text: string, length: number): string => {
   if (text.length <= length) return text;
   return text.substring(0, length) + '...';
 };
+
+/**
+ * PR-05: Helper untuk membersihkan teks dari karakter yang bisa merusak format CSV
+ * (misalnya menghapus koma berlebih, mengganti newline, dll)
+ */
+export const escapeCsv = (text: string | null | undefined): string => {
+  if (!text) return '';
+  const str = String(text);
+  // Jika teks mengandung koma, kutip ganda, atau baris baru, wajib diapit kutip ganda
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    // Escape kutip ganda dengan mendobelkannya ("")
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+};
