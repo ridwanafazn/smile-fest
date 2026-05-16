@@ -23,7 +23,7 @@ const checkoutSchema = z.object({
   interest_reasons: z.array(z.string()).min(1, 'Pilih minimal 1 ketertarikan'),
   sustainability_steps: z.array(z.string()).min(1, 'Pilih minimal 1 langkah'),
   
-  contribution_role: z.string().min(1, 'Silakan pilih salah satu komitmen kontribusi Anda'),
+  contribution_role: z.string({ message: 'Silakan pilih salah satu komitmen kontribusi Anda' }),
 
   ticket_type: z.string().min(1, 'Tiket tidak valid'),
   voucher_code: z.string().optional(),
