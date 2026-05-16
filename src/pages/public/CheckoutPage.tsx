@@ -23,7 +23,7 @@ const checkoutSchema = z.object({
   interest_reasons: z.array(z.string()).min(1, 'Pilih minimal 1 ketertarikan'),
   sustainability_steps: z.array(z.string()).min(1, 'Pilih minimal 1 langkah'),
   
-  contribution_role: z.string().min(1, 'Silakan pilih salah satu komitmen kontribusi Anda'),
+  contribution_role: z.string({ message: 'Silakan pilih salah satu komitmen kontribusi Anda' }).min(1, 'Silakan pilih salah satu komitmen kontribusi Anda'),
 
   ticket_type: z.string().min(1, 'Tiket tidak valid'),
   voucher_code: z.string().optional(),
@@ -494,17 +494,28 @@ export default function CheckoutPage() {
             <button
               type="submit"
               disabled={isSubmitting || !activeTicket}
-              className="w-full bg-stone-900 text-white py-5 rounded-2xl font-bold flex items-center justify-center gap-4 hover:bg-ringkai-olive transition-all duration-300 disabled:opacity-70 shadow-lg group active:scale-[0.98]"
+              className="w-full bg-stone-900 text-white py-4 px-5 md:py-5 md:px-8 rounded-2xl font-bold flex items-center justify-between gap-3 hover:bg-ringkai-olive transition-all duration-300 disabled:opacity-70 shadow-lg group active:scale-[0.98]"
             >
-              <div className="flex items-center gap-3">
-                {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : <TicketIcon className="w-6 h-6 group-hover:-rotate-12 transition-transform" />}
-                <span className="text-lg">Lanjut Pembayaran</span>
-              </div>
-              <div className="text-right">
-                {isVoucherValid && voucherDiscount > 0 && (
-                  <div className="text-stone-400 line-through text-xs font-normal">{formatRupiah(originalTotalPrice)}</div>
+              <div className="flex items-center gap-2 md:gap-3 shrink-0">
+                {isSubmitting ? (
+                  <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
+                ) : (
+                  <TicketIcon className="w-5 h-5 md:w-6 md:h-6 group-hover:-rotate-12 transition-transform" />
                 )}
-                <div className="text-2xl font-serif leading-none tracking-wide">{formatRupiah(finalPrice)}</div>
+                <span className="text-sm md:text-lg text-left leading-tight">
+                  Lanjut<br className="md:hidden" /> Pembayaran
+                </span>
+              </div>
+              
+              <div className="text-right truncate">
+                {isVoucherValid && voucherDiscount > 0 && (
+                  <div className="text-stone-400 line-through text-[10px] md:text-xs font-normal">
+                    {formatRupiah(originalTotalPrice)}
+                  </div>
+                )}
+                <div className="text-lg md:text-2xl font-serif leading-none tracking-wide">
+                  {formatRupiah(finalPrice)}
+                </div>
               </div>
             </button>
           </div>

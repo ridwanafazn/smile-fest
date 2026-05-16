@@ -1,12 +1,13 @@
 export default function PartnersSection() {
-  // Ganti src dengan link atau path logo aslinya nanti
   const partners = [
-    { name: 'Ringkai Binar', logo: 'https://via.placeholder.com/150x50/f5f5f4/a8a29e?text=RINGKAI+BINAR' },
-    { name: 'Salman ITB', logo: 'https://via.placeholder.com/150x50/f5f5f4/a8a29e?text=SALMAN+ITB' },
-    { name: 'Sponsor 3', logo: 'https://via.placeholder.com/150x50/f5f5f4/a8a29e?text=SPONSOR+3' },
-    { name: 'Sponsor 4', logo: 'https://via.placeholder.com/150x50/f5f5f4/a8a29e?text=SPONSOR+4' },
-    { name: 'Sponsor 5', logo: 'https://via.placeholder.com/150x50/f5f5f4/a8a29e?text=SPONSOR+5' },
-    { name: 'Sponsor 6', logo: 'https://via.placeholder.com/150x50/f5f5f4/a8a29e?text=SPONSOR+6' },
+    { name: 'Baik Berisik', logo: '/partners/baik-berisik.png' },
+    { name: 'Bumi Kitani ID', logo: '/partners/bumikitani-id.png' },
+    { name: 'Eco Deen', logo: '/partners/eco-deen.png' },
+    { name: 'Karisma Salman', logo: '/partners/karisma-salman.png' },
+    { name: 'Lindungi Hutan', logo: '/partners/lindungi-hutan.png' },
+    { name: 'Sadar Lemari', logo: '/partners/sadar-lemari.png' },
+    { name: 'Saviorangers', logo: '/partners/saviorangers.png' },
+    { name: 'Smart 171', logo: '/partners/smart-171.png' },
   ];
 
   const duplicatedPartners = [...partners, ...partners];
@@ -29,10 +30,10 @@ export default function PartnersSection() {
         `}
       </style>
 
-      <div className="max-w-7xl mx-auto px-6 mb-6">
-        <p className="text-center text-xs font-bold uppercase tracking-widest text-stone-400">
+      <div className="max-w-7xl mx-auto px-6 mb-12 md:mb-16">
+        <h4 className="text-center text-xs font-bold uppercase tracking-widest text-stone-400">
           Didukung Penuh Oleh
-        </p>
+        </h4>
       </div>
 
       <div className="relative w-full pause-on-hover flex">
@@ -49,7 +50,7 @@ export default function PartnersSection() {
               <img 
                 src={partner.logo} 
                 alt={partner.name} 
-                className="h-10 md:h-12 w-auto object-contain"
+                className="h-18 md:h-20 w-auto object-contain"
                 loading="lazy"
               />
             </div>
