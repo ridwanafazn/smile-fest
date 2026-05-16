@@ -23,7 +23,7 @@ const checkoutSchema = z.object({
   interest_reasons: z.array(z.string()).min(1, 'Pilih minimal 1 ketertarikan'),
   sustainability_steps: z.array(z.string()).min(1, 'Pilih minimal 1 langkah'),
   
-  contribution_role: z.string().min(1, 'Pilih jenis kontribusi'),
+  contribution_role: z.string().min(1, 'Silakan pilih salah satu komitmen kontribusi Anda'),
 
   ticket_type: z.string().min(1, 'Tiket tidak valid'),
   voucher_code: z.string().optional(),
@@ -43,7 +43,7 @@ const INTEREST_OPTIONS = [
 
 const STEP_OPTIONS = [
   'Membawa tumbler & kurangi plastik', 'Memilih produk halal & ethical', 
-  'Memilah sampah & kurangi sisa', 'Ikut kegiatan sosial/lingkungan', 
+  'Memilah & mengolah sampah', 'Ikut kegiatan sosial/lingkungan', 
   'Sedang belajar memulai konsisten'
 ];
 
@@ -82,7 +82,8 @@ export default function CheckoutPage() {
     defaultValues: {
       attendees: [{ name: '' }],
       interest_reasons: [],
-      sustainability_steps: []
+      sustainability_steps: [],
+      contribution_role: ''
     }
   });
 
@@ -152,8 +153,8 @@ export default function CheckoutPage() {
 
   const handleUploadProof = async () => {
     if (!paymentProof || !checkoutData) return;
-    if (paymentProof.size > 2 * 1024 * 1024) {
-      toast.error('Ukuran file maksimal 2MB');
+    if (paymentProof.size > 6 * 1024 * 1024) {
+      toast.error('Ukuran file maksimal 6MB');
       return;
     }
     setIsUploading(true);
@@ -236,7 +237,7 @@ export default function CheckoutPage() {
                 <span className="text-sm font-medium text-stone-600">
                   {paymentProof ? paymentProof.name : 'Klik unggah Bukti Transfer'}
                 </span>
-                <span className="text-xs text-stone-400 mt-1">Format: JPG, PNG (Max 2MB)</span>
+                <span className="text-xs text-stone-400 mt-1">Format: JPG, PNG (Max 6MB)</span>
               </label>
             </div>
 

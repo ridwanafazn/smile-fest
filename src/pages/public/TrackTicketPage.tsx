@@ -86,8 +86,8 @@ export default function TrackTicketPage() {
       return;
     }
 
-    if (paymentProof.size > 2 * 1024 * 1024) {
-      toast.error('Ukuran file maksimal 2MB');
+    if (paymentProof.size > 6 * 1024 * 1024) {
+      toast.error('Ukuran file maksimal 6MB');
       return;
     }
 
@@ -298,7 +298,7 @@ export default function TrackTicketPage() {
                           <>
                             <UploadCloud className="w-8 h-8 text-stone-400 mb-3" />
                             <span className="text-sm font-bold text-stone-700 mb-1">Unggah Bukti Transfer</span>
-                            <span className="text-xs text-stone-500">Maksimal 2MB (JPG/PNG)</span>
+                            <span className="text-xs text-stone-500">Maksimal 6MB (JPG/PNG)</span>
                           </>
                         )}
                       </label>

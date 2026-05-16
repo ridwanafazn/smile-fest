@@ -16,7 +16,7 @@ export default function AdminLayout() {
   const navItems = [
     { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/transactions', icon: ReceiptText, label: 'Transaksi' },
-    { path: '/admin/vouchers', icon: Ticket, label: 'Voucher & Tiket' },
+    { path: '/admin/vouchers', icon: Ticket, label: 'Voucher' },
     { path: '/admin/users', icon: Users, label: 'Manajemen Panitia' },
   ];
 
