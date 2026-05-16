@@ -19,6 +19,8 @@ import DashboardPage from './pages/admin/DashboardPage';
 import TransactionPage from './pages/admin/TransactionPage';
 import UserPage from './pages/admin/UserPage';
 import VoucherPage from './pages/admin/VoucherPage';
+import ApprovalPage from './pages/admin/ApprovalPage';
+import TicketPage from './pages/admin/TicketPage';
 
 // Pages - Scanner
 import ScannerPage from './pages/scanner/ScannerPage';
@@ -83,6 +85,8 @@ function App() {
           }>
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="approval" element={<ApprovalPage />} />
+            <Route path="tickets" element={<TicketPage />} />
             <Route path="transactions" element={<TransactionPage />} />
             <Route path="users" element={<UserPage />} />
             <Route path="vouchers" element={<VoucherPage />} />
