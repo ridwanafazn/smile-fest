@@ -23,7 +23,7 @@ const checkoutSchema = z.object({
   interest_reasons: z.array(z.string()).min(1, 'Pilih minimal 1 ketertarikan'),
   sustainability_steps: z.array(z.string()).min(1, 'Pilih minimal 1 langkah'),
   
-  contribution_role: z.string({ message: 'Silakan pilih salah satu komitmen kontribusi Anda' }),
+  contribution_role: z.string().min(1, 'Silakan pilih salah satu komitmen kontribusi Anda'),
 
   ticket_type: z.string().min(1, 'Tiket tidak valid'),
   voucher_code: z.string().optional(),
@@ -494,7 +494,7 @@ export default function CheckoutPage() {
             <button
               type="submit"
               disabled={isSubmitting || !activeTicket}
-              className="w-full bg-stone-900 text-white py-5 rounded-2xl font-bold flex items-center justify-between px-8 hover:bg-ringkai-olive transition-all duration-300 disabled:opacity-70 shadow-lg group active:scale-[0.98]"
+              className="w-full bg-stone-900 text-white py-5 rounded-2xl font-bold flex items-center justify-center gap-4 hover:bg-ringkai-olive transition-all duration-300 disabled:opacity-70 shadow-lg group active:scale-[0.98]"
             >
               <div className="flex items-center gap-3">
                 {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : <TicketIcon className="w-6 h-6 group-hover:-rotate-12 transition-transform" />}
