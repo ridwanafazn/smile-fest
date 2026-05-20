@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://smile-fest-api.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://smile-fest-api-143705141615.asia-southeast2.run.app/';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
