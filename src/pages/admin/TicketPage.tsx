@@ -28,12 +28,12 @@ export default function TicketPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<TicketVariant | null>(null);
 
-  // Ambil Data Tiket (Asumsi API akan dibuat di Backend: GET /api/admin/ticket-variants)
+  // Ambil Data Tiket
   const { data: tickets, isLoading } = useQuery({
     queryKey: ['adminTickets'],
     queryFn: async () => {
-      // Sementara kita gunakan endpoint publik jika endpoint admin belum siap
-      // Nanti di Backend, pastikan endpoint ini mengembalikan SEMUA tiket (termasuk yang tidak aktif)
+      // Menggunakan endpoint /info. Karena dipanggil oleh Admin (bawa token auth),
+      // Backend akan otomatis mengembalikan SEMUA tiket (termasuk yang tidak aktif).
       const response = await api.get<{ data: TicketVariant[] }>('/api/tickets/info');
       return Array.isArray(response.data.data) ? response.data.data : [];
     },
@@ -48,7 +48,7 @@ export default function TicketPage() {
     if (editingTicket) {
       setValue('name', editingTicket.name);
       setValue('price', editingTicket.price);
-      setValue('quota', editingTicket.quota);
+      setValue('quota', editingTicket.quota || 100); // Asumsi kuota jika belum ada
       // Format tanggal untuk input datetime-local (YYYY-MM-DDThh:mm)
       setValue('start_date', editingTicket.start_date ? new Date(editingTicket.start_date).toISOString().slice(0, 16) : '');
       setValue('end_date', editingTicket.end_date ? new Date(editingTicket.end_date).toISOString().slice(0, 16) : '');
@@ -73,6 +73,7 @@ export default function TicketPage() {
       const payload = {
         ...data,
         // Format ISO String untuk Backend (Golang Time)
+        // Kita tangani null value agar tidak dikirim string kosong ke Golang
         start_date: data.start_date ? new Date(data.start_date).toISOString() : null,
         end_date: data.end_date ? new Date(data.end_date).toISOString() : null,
       };
@@ -95,7 +96,7 @@ export default function TicketPage() {
     mutationFn: (id: string) => api.put(`/api/admin/ticket-variants/${id}/toggle`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminTickets'] });
-      toast.success('Status tiket diperbarui!');
+      toast.success('Status penjualan tiket diperbarui!');
     },
     onError: () => toast.error('Gagal mengubah status tiket')
   });
@@ -194,12 +195,12 @@ export default function TicketPage() {
               <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-stone-100">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1 flex items-center gap-1"><Users className="w-3 h-3"/> Kuota Sisa</p>
-                  <p className="text-stone-800 font-semibold">{ticket.quota} <span className="font-normal text-xs text-stone-500">Tiket</span></p>
+                  <p className="text-stone-800 font-semibold">{ticket.quota || '---'} <span className="font-normal text-xs text-stone-500">Tiket</span></p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1 flex items-center gap-1"><Calendar className="w-3 h-3"/> Berakhir</p>
                   <p className="text-stone-800 font-semibold text-sm">
-                    {ticket.end_date ? new Date(ticket.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : 'Selamanya'}
+                    {ticket.end_date && ticket.end_date !== "0001-01-01T00:00:00Z" ? new Date(ticket.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : 'Selamanya'}
                   </p>
                 </div>
               </div>

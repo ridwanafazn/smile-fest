@@ -1,10 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
 
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://smile-fest-api-143705141615.asia-southeast2.run.app/';
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://smile-fest-api.up.railway.app/';
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://smile-fest-api-production.up.railway.app/';
-
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -72,5 +69,10 @@ export const transactionService = {
   // Verifikasi manual oleh Admin
   verifyPayment: async (orderId: string, action: 'approve' | 'reject') => {
     return api.put(`/api/admin/transactions/${orderId}/verify`, { action });
+  },
+
+  // Pembatalan transaksi manual oleh user (State-Based Response)
+  cancelOrder: async (orderId: string) => {
+    return api.put(`/api/transactions/${orderId}/cancel`);
   }
 };

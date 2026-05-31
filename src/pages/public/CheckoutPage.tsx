@@ -6,7 +6,11 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { api, transactionService } from '../../services/api';
-import { Loader2, Ticket as TicketIcon, Check, X, AlertCircle, Plus, Minus, Users, ClipboardList, Copy, UploadCloud, Clock, UserCheck } from 'lucide-react';
+import { 
+  Loader2, Ticket as TicketIcon, Check, X, AlertCircle, Plus, Minus, 
+  Users, ClipboardList, Copy, UploadCloud, Clock, UserCheck, 
+  AlertTriangle, RefreshCcw, ArrowRight 
+} from 'lucide-react';
 import type { CheckoutInput, CheckoutResponse } from '../../types';
 
 // Skema Zod
@@ -62,11 +66,16 @@ export default function CheckoutPage() {
   const [paymentProof, setPaymentProof] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  // State Voucher
   const [isVoucherValid, setIsVoucherValid] = useState<boolean | null>(null);
   const [isCheckingVoucher, setIsCheckingVoucher] = useState(false);
   const [voucherMessage, setVoucherMessage] = useState('');
   const [voucherDiscount, setVoucherDiscount] = useState(0); 
   const [quantity, setQuantity] = useState(1);
+
+  // State Konflik Transaksi & UX State-Based Response
+  const [conflictData, setConflictData] = useState<{order_id: string, status: string} | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const { data: tickets, isLoading: isTicketsLoading } = useQuery({
     queryKey: ['activeTickets'],
@@ -77,7 +86,8 @@ export default function CheckoutPage() {
     }
   });
 
-  const { register, handleSubmit, watch, setValue, control, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  // Tambahkan getValues untuk mengeksekusi form ulang secara programatik
+  const { register, handleSubmit, watch, setValue, getValues, control, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
       attendees: [{ name: '' }],
@@ -131,7 +141,6 @@ export default function CheckoutPage() {
 
   const onSubmitForm = async (data: FormValues) => {
     try {
-      // Injeksi variabel dummy ke Backend untuk form yang sudah dihapus dari UI
       const payload: CheckoutInput = {
         ...data,
         customer_gender: "-", 
@@ -146,8 +155,32 @@ export default function CheckoutPage() {
       setStep('instruction');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       toast.success('Tiket berhasil direservasi!');
+      setConflictData(null); // Bersihkan state konflik jika sukses
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Gagal membuat transaksi. Kuota mungkin habis.');
+      // CEGAT ERROR 409 DARI BACKEND DI SINI
+      if (error.response?.status === 409 && error.response?.data?.order_id) {
+        setConflictData({
+          order_id: error.response.data.order_id,
+          status: error.response.data.status
+        });
+      } else {
+        toast.error(error.response?.data?.error || 'Gagal membuat transaksi. Kuota mungkin habis.');
+      }
+    }
+  };
+
+  const handleCancelAndReorder = async () => {
+    if (!conflictData) return;
+    setIsCancelling(true);
+    try {
+      await transactionService.cancelOrder(conflictData.order_id);
+      toast.success('Pesanan lama berhasil dibatalkan. Memproses pesanan baru...');
+      setConflictData(null);
+      // Eksekusi ulang proses order dengan data form yang sedang terisi saat ini
+      onSubmitForm(getValues());
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Gagal membatalkan pesanan lama');
+      setIsCancelling(false);
     }
   };
 
@@ -201,7 +234,7 @@ export default function CheckoutPage() {
                   <p className="text-lg font-bold text-stone-800 tracking-wider">278 233 3217</p>
                   <p className="text-xs text-stone-500">a.n Alima Fikri Shidiq</p>
                 </div>
-                <button onClick={() => copyToClipboard('2782333217', 'Rekening')} className="p-2 text-stone-400 hover:text-ringkai-olive transition-colors">
+                <button type="button" onClick={() => copyToClipboard('2782333217', 'Rekening')} className="p-2 text-stone-400 hover:text-ringkai-olive transition-colors">
                   <Copy className="w-5 h-5" />
                 </button>
               </div>
@@ -213,7 +246,7 @@ export default function CheckoutPage() {
                 <p className="text-2xl font-serif font-bold text-ringkai-olive">
                   {formatRupiah(checkoutData.total_amount)}
                 </p>
-                <button onClick={() => copyToClipboard(checkoutData.total_amount.toString(), 'Nominal')} className="p-2 text-ringkai-olive hover:text-stone-700 transition-colors">
+                <button type="button" onClick={() => copyToClipboard(checkoutData.total_amount.toString(), 'Nominal')} className="p-2 text-ringkai-olive hover:text-stone-700 transition-colors">
                   <Copy className="w-5 h-5" />
                 </button>
               </div>
@@ -242,6 +275,7 @@ export default function CheckoutPage() {
             </div>
 
             <button
+              type="button"
               onClick={handleUploadProof}
               disabled={isUploading || !paymentProof}
               className="w-full bg-ringkai-text text-white py-4 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-stone-700 transition-all disabled:opacity-50"
@@ -251,6 +285,7 @@ export default function CheckoutPage() {
             </button>
             
             <button 
+              type="button"
               onClick={() => navigate(`/track-ticket?order_id=${checkoutData.order_id}&email=${watchEmail}`)}
               className="w-full py-3 text-stone-500 text-sm font-medium hover:text-stone-800 transition-colors"
             >
@@ -264,7 +299,75 @@ export default function CheckoutPage() {
 
   // --- RENDER VIEW FORM CHECKOUT UTAMA ---
   return (
-    <div className="flex-1 flex flex-col items-center justify-center py-12 px-6 animate-in fade-in">
+    <div className="flex-1 flex flex-col items-center justify-center py-12 px-6 animate-in fade-in relative">
+      
+      {/* --- MODAL PENGINGAT TRANSAKSI GANDA (STATE-BASED UI) --- */}
+      {conflictData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" onClick={() => setConflictData(null)}></div>
+          <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl relative z-10 animate-in zoom-in-95 duration-200 overflow-hidden">
+            <div className="p-8 md:p-10 space-y-6">
+              <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-6">
+                <AlertTriangle className="w-8 h-8" />
+              </div>
+              
+              <div>
+                <h2 className="text-2xl font-serif text-stone-900 mb-2">Oops! Ada pesanan yang menggantung.</h2>
+                {conflictData.status === 'pending' ? (
+                  <p className="text-stone-500 text-sm leading-relaxed">
+                    Kami menemukan pesanan tiket yang <strong className="text-stone-800">belum dibayar</strong> atas email <strong className="text-stone-800">{watchEmail}</strong>. 
+                    Kamu bisa melanjutkan pembayaran pesanan tersebut, atau membatalkannya untuk membuat pesanan baru ini.
+                  </p>
+                ) : (
+                  <p className="text-stone-500 text-sm leading-relaxed">
+                    Pesanan sebelumnya dengan email <strong className="text-stone-800">{watchEmail}</strong> <strong className="text-ringkai-olive">sedang diperiksa oleh Admin</strong> karena kamu sudah mengunggah bukti transfer. Kamu tidak perlu memesan tiket baru lagi.
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-widest text-stone-400">Order ID Terakhir</span>
+                <span className="font-mono text-stone-800 font-semibold">{conflictData.order_id}</span>
+              </div>
+
+              <div className="pt-4 space-y-3">
+                {/* Tombol Lanjut ke Lacak Tiket (Tersedia untuk semua status menggantung) */}
+                <button
+                  type="button"
+                  onClick={() => navigate(`/track-ticket?order_id=${conflictData.order_id}&email=${watchEmail}`)}
+                  className="w-full bg-stone-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-ringkai-olive transition-all shadow-md"
+                >
+                  {conflictData.status === 'pending' ? 'Lanjut Bayar Pesanan Lama' : 'Lihat Status Verifikasi'} <ArrowRight className="w-4 h-4" />
+                </button>
+
+                {/* Tombol Batalkan (HANYA MUNCUL JIKA STATUS PENDING) */}
+                {conflictData.status === 'pending' && (
+                  <button
+                    type="button"
+                    onClick={handleCancelAndReorder}
+                    disabled={isCancelling}
+                    className="w-full bg-white text-ringkai-danger border border-red-200 py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-50 transition-all disabled:opacity-50"
+                  >
+                    {isCancelling ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCcw className="w-5 h-5" />}
+                    Batalkan & Buat Pesanan Baru
+                  </button>
+                )}
+                
+                <button
+                  type="button"
+                  onClick={() => setConflictData(null)}
+                  className="w-full text-stone-400 text-sm font-medium py-2 hover:text-stone-600 transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* -------------------------------------------------------- */}
+
+
       <div className="w-full max-w-2xl">
         <div className="mb-10 text-center">
           <h1 className="text-3xl md:text-4xl font-serif mb-3 text-stone-900">Amankan Ruangmu.</h1>
