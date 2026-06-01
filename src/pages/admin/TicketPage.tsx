@@ -43,15 +43,26 @@ export default function TicketPage() {
     resolver: zodResolver(ticketSchema)
   });
 
+  // --- FUNGSI PEMBANTU KONVERSI TIMEZONE (FIX TIMEZONE BUG) ---
+  // Mengubah string UTC dari database menjadi string format lokal (YYYY-MM-DDThh:mm) yang dipahami input datetime-local
+  const formatToLocalDateTime = (dateString: string | undefined) => {
+    if (!dateString || dateString === "0001-01-01T00:00:00Z") return '';
+    const d = new Date(dateString);
+    // Mengganti offset menit ke milidetik lalu dikurangi dari waktu murni agar bergeser kembali ke waktu lokal komputer (WIB)
+    const localTime = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return localTime.toISOString().slice(0, 16);
+  };
+
   // Reset form ketika modal dibuka/ditutup atau saat editingTicket berubah
   useEffect(() => {
     if (editingTicket) {
       setValue('name', editingTicket.name);
       setValue('price', editingTicket.price);
       setValue('quota', editingTicket.quota || 100); // Asumsi kuota jika belum ada
-      // Format tanggal untuk input datetime-local (YYYY-MM-DDThh:mm)
-      setValue('start_date', editingTicket.start_date ? new Date(editingTicket.start_date).toISOString().slice(0, 16) : '');
-      setValue('end_date', editingTicket.end_date ? new Date(editingTicket.end_date).toISOString().slice(0, 16) : '');
+      
+      // FIX: Menggunakan fungsi konversi lokal agar jam UTC dikembalikan ke jam lokal (misal 10:00 WIB)
+      setValue('start_date', formatToLocalDateTime(editingTicket.start_date));
+      setValue('end_date', formatToLocalDateTime(editingTicket.end_date));
     } else {
       reset({ name: '', price: 0, quota: 100, start_date: '', end_date: '' });
     }
@@ -73,7 +84,7 @@ export default function TicketPage() {
       const payload = {
         ...data,
         // Format ISO String untuk Backend (Golang Time)
-        // Kita tangani null value agar tidak dikirim string kosong ke Golang
+        // new Date("YYYY-MM-DDThh:mm") otomatis menganggap waktu lokal, lalu toISOString() mengubahnya kembali ke UTC dengan aman
         start_date: data.start_date ? new Date(data.start_date).toISOString() : null,
         end_date: data.end_date ? new Date(data.end_date).toISOString() : null,
       };
