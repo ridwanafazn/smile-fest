@@ -32,9 +32,9 @@ export default function TicketPage() {
   const { data: tickets, isLoading } = useQuery({
     queryKey: ['adminTickets'],
     queryFn: async () => {
-      // Menggunakan endpoint /info. Karena dipanggil oleh Admin (bawa token auth),
-      // Backend akan otomatis mengembalikan SEMUA tiket (termasuk yang tidak aktif).
-      const response = await api.get<{ data: TicketVariant[] }>('/api/tickets/info');
+      // FIX: Menggunakan endpoint admin murni, bukan endpoint publik.
+      // Backend akan otomatis mengembalikan SEMUA tiket (termasuk yang tidak aktif) diurutkan berdasarkan ID.
+      const response = await api.get<{ data: TicketVariant[] }>('/api/admin/ticket-variants');
       return Array.isArray(response.data.data) ? response.data.data : [];
     },
   });
