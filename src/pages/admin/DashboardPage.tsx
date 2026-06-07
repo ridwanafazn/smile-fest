@@ -8,8 +8,10 @@ export default function DashboardPage() {
   const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['dashboardStats'],
     queryFn: async () => {
-      const response = await api.get<{message: string, data: DashboardStats}>('/api/admin/dashboard');
-      return response.data.data; 
+      // FIX: Menghapus tipe generik lama dan membiarkan Axios mengelola respons
+      const response = await api.get('/api/admin/dashboard');
+      // FIX: Cukup gunakan response.data karena Interceptor api.ts sudah melakukan unboxing
+      return response.data as unknown as DashboardStats; 
     },
     // Interval dipercepat menjadi 5 detik karena Admin butuh memantau transfer masuk
     refetchInterval: 5000, 

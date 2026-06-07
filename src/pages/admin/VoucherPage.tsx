@@ -23,9 +23,8 @@ export default function VoucherPage() {
   const { data: vouchers, isLoading } = useQuery({
     queryKey: ['vouchers'],
     queryFn: async () => {
-      const response = await api.get<{message: string, data: Voucher[]}>('/api/admin/vouchers');
-      const payload = response.data;
-      return Array.isArray(payload.data) ? payload.data : [];
+      const response = await api.get('/api/admin/vouchers');
+      return (response.data || []) as Voucher[];
     },
   });
 
@@ -41,7 +40,7 @@ export default function VoucherPage() {
       toast.success('Voucher berhasil dibuat');
       resetForm();
     },
-    onError: (error: any) => toast.error(error.response?.data?.error || 'Gagal membuat voucher'),
+    onError: (error: any) => toast.error(error.response?.data?.meta?.message || 'Gagal memproses voucher'),
   });
 
   const updateMutation = useMutation({
@@ -51,7 +50,7 @@ export default function VoucherPage() {
       toast.success('Voucher berhasil diperbarui');
       resetForm();
     },
-    onError: (error: any) => toast.error(error.response?.data?.error || 'Gagal mengupdate voucher'),
+    onError: (error: any) => toast.error(error.response?.data?.meta?.message || 'Gagal memproses voucher'),
   });
 
   const deleteMutation = useMutation({
@@ -60,7 +59,7 @@ export default function VoucherPage() {
       queryClient.invalidateQueries({ queryKey: ['vouchers'] });
       toast.success('Voucher berhasil dihapus');
     },
-    onError: (error: any) => toast.error(error.response?.data?.error || 'Gagal menghapus voucher'),
+    onError: (error: any) => toast.error(error.response?.data?.meta?.message || 'Gagal memproses voucher'),
   });
 
   const toggleMutation = useMutation({

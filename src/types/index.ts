@@ -1,3 +1,30 @@
+// --- CORE WRAPPERS (CLEAN ARCHITECTURE BACKEND FORMAT) ---
+export interface Meta {
+  code: number;
+  status: string;
+  message: string;
+}
+
+export interface PaginationMeta {
+  current_page: number;
+  total_pages: number;
+  total_records: number;
+  limit: number;
+}
+
+// Digunakan jika tidak menggunakan fitur auto-unboxing interceptor
+export interface BaseResponse<T> {
+  meta: Meta;
+  data: T;
+}
+
+// Digunakan khusus untuk Data Table (CRM) yang butuh meta pagination
+export interface PaginatedResponse<T> {
+  meta: Meta;
+  data: T;
+  pagination: PaginationMeta;
+}
+
 // --- AUTH & USER ---
 export interface User {
   id: string;
@@ -32,7 +59,6 @@ export interface CheckoutInput {
   customer_gender: string;
   ticket_type: string;
   
-  // Data Profil (Menggantikan Survei Lama)
   profile_age: string;
   profile_city: string;
   profile_education: string;
@@ -40,18 +66,15 @@ export interface CheckoutInput {
   community_affiliation: string;
   information_source: string;
   
-  // Kuesioner Multiple Choice (Disimpan sebagai Array di form)
   interest_reasons: string[];
   sustainability_steps: string[];
   
-  // Undangan Kontribusi
   contribution_role: string;
 
   voucher_code?: string;
   attendees: Attendee[]; 
 }
 
-// Respons dari API Checkout Manual
 export interface CheckoutResponse {
   message: string;
   order_id: string;
@@ -61,7 +84,6 @@ export interface CheckoutResponse {
   expires_at: string;
 }
 
-// Representasi individual tiket
 export interface Ticket {
   id: string;
   transaction_id: string;
@@ -90,7 +112,6 @@ export interface Transaction {
   customer_phone: string;
   customer_gender: string;
   
-  // Data Profil Tambahan
   profile_age: string;
   profile_city: string;
   profile_education: string;
@@ -98,20 +119,17 @@ export interface Transaction {
   community_affiliation: string;
   information_source: string;
 
-  // Hasil Kuesioner (String digabung koma dari Backend)
   interest_reasons: string;
   sustainability_steps: string;
   
   contribution_role: string;
 
-  // Manual Payment System
   total_amount: number; 
   unique_code: number;
   session_batch: number;
   payment_proof_url?: string;
   expires_at: string;
 
-  // Penambahan status 'waiting_verification'
   status: 'pending' | 'waiting_verification' | 'settlement' | 'cancel' | 'expire';
   created_at: string;
   
@@ -141,5 +159,5 @@ export interface DashboardStats {
   total_revenue: number;
   total_tickets: number;
   scanned_tickets: number;
-  waiting_verification: number; // Tambahan metrik beban kerja admin
+  waiting_verification: number; 
 }

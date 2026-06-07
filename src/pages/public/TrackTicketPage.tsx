@@ -56,19 +56,21 @@ export default function TrackTicketPage() {
     
     try {
       const res = await api.get('/api/tickets/track', { params: { order_id, email } });
+      const rawTicket = res.data as any;
+
       const payload: TrackResponse = {
-        order_id: res.data.data.id,
-        customer_name: res.data.data.customer_name,
-        customer_email: res.data.data.customer_email,
-        total_amount: res.data.data.total_amount,
-        session_batch: res.data.data.session_batch,
-        tickets: res.data.data.tickets, // Perbaikan casing JSON
-        status: res.data.data.status,
-      }; 
+        order_id: rawTicket.id,
+        customer_name: rawTicket.customer_name,
+        customer_email: rawTicket.customer_email,
+        total_amount: rawTicket.total_amount,
+        session_batch: rawTicket.session_batch,
+        tickets: rawTicket.tickets, 
+        status: rawTicket.status,
+      };
       
       setTicketData(payload);
     } catch (error: any) {
-      setErrorMsg(error.response?.data?.error || 'Tiket tidak ditemukan. Periksa kembali Order ID dan Email.');
+      setErrorMsg(error.response?.data?.meta?.message || 'Tiket tidak ditemukan. Periksa kembali Order ID dan Email.');
       setTicketData(null);
     } finally {
       setIsLoading(false);

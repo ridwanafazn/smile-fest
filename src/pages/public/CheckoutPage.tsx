@@ -81,8 +81,7 @@ export default function CheckoutPage() {
     queryKey: ['activeTickets'],
     queryFn: async () => {
       const res = await api.get('/api/tickets/info');
-      const responseBody = res.data;
-      return Array.isArray(responseBody.data) ? responseBody.data : [];
+      return (res.data || []) as any[];
     }
   });
 

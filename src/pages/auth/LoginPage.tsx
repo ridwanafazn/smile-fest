@@ -29,7 +29,11 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginForm) => {
     try {
+      // KEMBALI SEPERTI SEMULA: Tipe generik <LoginResponse> digunakan kembali
       const response = await api.post<LoginResponse>('/api/login', data);
+      
+      // KEMBALI SEPERTI SEMULA: Axios Interceptor di api.ts sudah otomatis mengupas (unbox)
+      // bungkus 'data' dari backend, sehingga kita cukup membaca response.data
       const { token, role } = response.data;
 
       // Simpan ke Zustand & LocalStorage
@@ -44,7 +48,8 @@ export default function LoginPage() {
         navigate('/scanner');
       }
     } catch (error: any) {
-      const message = error.response?.data?.error || 'Login gagal, silakan cek kembali kredensial Anda';
+      // TETAP DIPERTAHANKAN: Penyesuaian pesan error membaca format meta.message yang baru
+      const message = error.response?.data?.meta?.message || error.response?.data?.error || 'Login gagal, silakan cek kembali kredensial Anda';
       toast.error(message);
     }
   };

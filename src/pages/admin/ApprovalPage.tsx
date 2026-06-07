@@ -13,17 +13,16 @@ export default function ApprovalPage() {
   const queryClient = useQueryClient();
   const [selectedTrxId, setSelectedTrxId] = useState<string | null>(null);
 
-  // Ambil semua transaksi tanpa filter search untuk mendapatkan antrean realtime
-  const { data: transactions, isLoading } = useQuery({
-    queryKey: ['transactions', 'approval'],
-    queryFn: async () => {
-      const response = await api.get<{data: Transaction[]}>('/api/admin/transactions');
-      const payload = response.data;
-      return Array.isArray(payload.data) ? payload.data : [];
-    },
-    // Polling setiap 30 detik untuk mengecek antrean baru secara otomatis
-    refetchInterval: 30000, 
-  });
+    const { data: queryData, isLoading } = useQuery({
+        queryKey: ['transactions', 'approval'],
+        queryFn: async () => {
+          const response = await api.get('/api/admin/transactions');
+          return response.data as unknown as { data: Transaction[], pagination: any };
+        },
+        refetchInterval: 30000, 
+      });
+
+    const transactions = queryData?.data || [];
 
   // Filter khusus untuk status 'waiting_verification' (hanya dieksekusi ulang jika transactions berubah)
   const pendingApprovals = useMemo(() => {
@@ -53,7 +52,7 @@ export default function ApprovalPage() {
       setSelectedTrxId(null);
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Gagal memverifikasi pembayaran');
+      toast.error(error.response?.data?.meta?.message || 'Gagal memverifikasi pembayaran');
     }
   });
 

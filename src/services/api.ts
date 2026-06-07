@@ -8,14 +8,12 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  // Timeout 10 detik, mencegah UI hanging jika koneksi lapangan buruk
   timeout: 10000, 
 });
 
 // --- REQUEST INTERCEPTOR ---
 api.interceptors.request.use(
   (config) => {
-    // Tarik token langsung dari store Zustand
     const token = useAuthStore.getState().token;
     
     if (token && config.headers) {
@@ -28,18 +26,36 @@ api.interceptors.request.use(
   }
 );
 
-// --- RESPONSE INTERCEPTOR ---
+// --- RESPONSE INTERCEPTOR (AUTO-UNBOXING) ---
 api.interceptors.response.use(
   (response) => {
+    // Mengecek apakah respons berasal dari format 'utils.SuccessResponse' Backend
+    // Format Backend kita selalu membungkus payload asli di dalam properti 'data'
+    if (response.data && response.data.meta && response.data.meta.status === 'success') {
+      
+      // Jika ini adalah respon dengan pagination, kita unbox tapi sisipkan kembali objek pagination-nya
+      if (response.data.pagination) {
+         // Mengubah struktur response Axios secara on-the-fly
+         response.data = {
+            data: response.data.data,
+            pagination: response.data.pagination,
+            meta: response.data.meta // Tetap simpan meta jika sewaktu-waktu dibutuhkan toast
+         };
+         return response;
+      }
+      
+      // Jika respons biasa, unbox murni layer datanya (seperti format sebelum refactor BE)
+      // Contoh: respons asli adalah { meta: {...}, data: { token: '...' } }
+      // Komponen FE akan langsung menerima { token: '...' } melalui response.data
+      response.data = response.data.data;
+    }
+    
     return response;
   },
   (error) => {
-    // Global Error Handler untuk token kadaluarsa atau tidak valid
     if (error.response && error.response.status === 401) {
-      // Bersihkan state aplikasi
       useAuthStore.getState().logout();
       
-      // Jika bukan di halaman login, arahkan paksa ke halaman login
       if (window.location.pathname !== '/auth/login') {
         window.location.href = '/auth/login';
       }
@@ -50,9 +66,7 @@ api.interceptors.response.use(
 );
 
 // --- MANUAL PAYMENT SERVICES ---
-// Memisahkan fungsi khusus yang membutuhkan konfigurasi header berbeda
 export const transactionService = {
-  // Upload bukti bayar dengan multipart/form-data
   uploadProof: async (orderId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -61,17 +75,14 @@ export const transactionService = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-      // Timeout diperpanjang khusus untuk upload file besar
       timeout: 30000, 
     });
   },
   
-  // Verifikasi manual oleh Admin
   verifyPayment: async (orderId: string, action: 'approve' | 'reject') => {
     return api.put(`/api/admin/transactions/${orderId}/verify`, { action });
   },
 
-  // Pembatalan transaksi manual oleh user (State-Based Response)
   cancelOrder: async (orderId: string) => {
     return api.put(`/api/transactions/${orderId}/cancel`);
   }

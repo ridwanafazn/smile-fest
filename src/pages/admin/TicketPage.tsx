@@ -28,14 +28,12 @@ export default function TicketPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<TicketVariant | null>(null);
 
-  // Ambil Data Tiket
   const { data: tickets, isLoading } = useQuery({
     queryKey: ['adminTickets'],
     queryFn: async () => {
-      // FIX: Menggunakan endpoint admin murni, bukan endpoint publik.
-      // Backend akan otomatis mengembalikan SEMUA tiket (termasuk yang tidak aktif) diurutkan berdasarkan ID.
-      const response = await api.get<{ data: TicketVariant[] }>('/api/admin/ticket-variants');
-      return Array.isArray(response.data.data) ? response.data.data : [];
+      const response = await api.get('/api/admin/ticket-variants');
+      // response.data langsung berisi Array karena sudah di-unbox oleh interceptor
+      return (response.data || []) as TicketVariant[];
     },
   });
 
@@ -100,7 +98,7 @@ export default function TicketPage() {
       toast.success(editingTicket ? 'Tiket berhasil diperbarui!' : 'Gelombang tiket baru ditambahkan!');
       handleCloseModal();
     },
-    onError: (error: any) => toast.error(error.response?.data?.error || 'Gagal menyimpan tiket')
+    onError: (error: any) => toast.error(error.response?.data?.meta?.message || 'Gagal menyimpan tiket')
   });
 
   const toggleMutation = useMutation({
@@ -118,7 +116,7 @@ export default function TicketPage() {
       queryClient.invalidateQueries({ queryKey: ['adminTickets'] });
       toast.success('Tiket berhasil dihapus secara permanen!');
     },
-    onError: (error: any) => toast.error(error.response?.data?.error || 'Gagal menghapus tiket. Pastikan tidak ada transaksi yang terikat.')
+    onError: (error: any) => toast.error(error.response?.data?.meta?.message || 'Gagal menghapus tiket. Pastikan tidak ada transaksi yang terikat.')
   });
 
   const onSubmit = (data: TicketFormValues) => {

@@ -24,7 +24,7 @@ export default function AdminLayout() {
     { path: '/admin/vouchers', icon: Ticket, label: ' Voucher' },
     { path: '/admin/tickets', icon: Tag, label: ' Tiket' },
     { path: '/admin/users', icon: Users, label: ' Panitia' },
-    { path: '/scanner', icon: QrCode, label: ' Scanner View' },
+    { path: '/scanner', icon: QrCode, label: ' Scanner' },
   ];
 
   return (
