@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,7 +7,7 @@ import { toast } from 'react-hot-toast';
 import { api } from '../../services/api';
 import type { User } from '../../types';
 import { 
-  UserPlus, Shield, Loader2, FileX, Search, Filter, 
+  UserPlus, Shield, Loader2, Search, Filter, 
   ChevronLeft, ChevronRight, Lock, UserX, Trash2, RefreshCcw, AlertTriangle, Edit2, X 
 } from 'lucide-react';
 

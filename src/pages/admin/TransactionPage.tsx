@@ -43,7 +43,7 @@ export default function TransactionPage() {
       });
       return response.data as unknown as { data: Transaction[], pagination: any };
     },
-    keepPreviousData: true, 
+    placeholderData: (previousData) => previousData, 
   });
 
   const transactions = queryData?.data || [];

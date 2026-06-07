@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
