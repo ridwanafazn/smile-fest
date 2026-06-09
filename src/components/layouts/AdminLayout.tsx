@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, ReceiptText, Users, Ticket, LogOut, Menu, 
-  ChevronLeft, ChevronRight, CheckSquare, Tag, QrCode 
+  ChevronLeft, ChevronRight, CheckSquare, Tag, QrCode, BarChart3 
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -25,6 +25,7 @@ export default function AdminLayout() {
     { path: '/admin/tickets', icon: Tag, label: ' Tiket' },
     { path: '/admin/users', icon: Users, label: ' Panitia' },
     { path: '/scanner', icon: QrCode, label: ' Scanner' },
+    { path: '/admin/insights', icon: BarChart3, label: ' Insight' },
   ];
 
   return (

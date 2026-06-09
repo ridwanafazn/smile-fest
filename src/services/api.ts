@@ -85,5 +85,17 @@ export const transactionService = {
 
   cancelOrder: async (orderId: string) => {
     return api.put(`/api/transactions/${orderId}/cancel`);
+  },
+
+  getTransactionInsights: async (params: {
+    page: number;
+    limit: number;
+    search?: string;
+    voucher?: string;
+    variant?: string;
+  }) => {
+    // Karena interceptor Anda mengembalikan objek utuh 'response' saat ada properti pagination,
+    // Kita panggil .then(res => res.data) agar query function TanStack Query langsung menerima { data: [...], pagination: {...} }
+    return api.get('/api/admin/transactions/insights', { params }).then(res => res.data);
   }
 };

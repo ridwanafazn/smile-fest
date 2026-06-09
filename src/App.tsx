@@ -21,6 +21,7 @@ import UserPage from './pages/admin/UserPage';
 import VoucherPage from './pages/admin/VoucherPage';
 import ApprovalPage from './pages/admin/ApprovalPage';
 import TicketPage from './pages/admin/TicketPage';
+import TransactionInsightPage from './pages/admin/InsightPage';
 
 // Pages - Scanner
 import ScannerPage from './pages/scanner/ScannerPage';
@@ -90,6 +91,7 @@ function App() {
             <Route path="transactions" element={<TransactionPage />} />
             <Route path="users" element={<UserPage />} />
             <Route path="vouchers" element={<VoucherPage />} />
+            <Route path="insights" element={<TransactionInsightPage />} />
           </Route>
 
           {/* 🔴 RUTE SCANNER */}

@@ -88,6 +88,7 @@ export interface Ticket {
   id: string;
   transaction_id: string;
   ticket_variant_id: string;
+  ticket_variant?: TicketVariant;
   attendee_name: string;
   is_scanned: boolean;
   scanned_at: string | null;
@@ -164,4 +165,12 @@ export interface DashboardStats {
   total_tickets: number;
   scanned_tickets: number;
   waiting_verification: number; 
+}
+
+export interface TransactionInsightParams {
+  page: number;
+  limit: number;
+  search?: string;
+  voucher?: string;
+  variant?: string;
 }
