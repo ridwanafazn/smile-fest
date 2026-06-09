@@ -188,6 +188,14 @@ export default function CheckoutPage() {
 //   }
 // };
 
+
+  const handleRemoveVoucher = () => {
+  setVoucherDiscount(0);
+  setIsVoucherValid(null);
+  setVoucherMessage('');
+  setValue('voucher_code', '');
+};
+
   const onSubmitForm = async (data: FormValues) => {
     try {
       const payload: CheckoutInput = {
@@ -631,23 +639,42 @@ export default function CheckoutPage() {
                   type="text"
                   placeholder="KODE PROMO"
                   className="flex-1 px-5 py-3.5 bg-stone-50 border border-stone-200 rounded-xl focus:border-ringkai-olive transition-colors uppercase font-mono tracking-widest"
-                  disabled={isVoucherValid === true}
                 />
                 <button
                   type="button"
-                  onClick={handleCheckVoucher}
-                  disabled={!watchVoucher || isCheckingVoucher || isVoucherValid === true}
-                  className="w-full sm:w-36 py-3.5 bg-stone-900 text-white font-bold rounded-xl hover:bg-ringkai-olive transition-colors disabled:bg-stone-200 disabled:text-stone-400 flex justify-center items-center"
+                  onClick={
+                    isVoucherValid
+                      ? handleRemoveVoucher
+                      : handleCheckVoucher
+                  }
+                  disabled={
+                    isCheckingVoucher ||
+                    (!watchVoucher && !isVoucherValid)
+                  }
+                  className={`w-full sm:w-36 py-3.5 text-white font-bold rounded-xl transition-colors ${
+                    isVoucherValid
+                      ? 'bg-stone-900 hover:bg-ringkai-olive'
+                      : 'bg-stone-900 hover:bg-ringkai-olive'
+                  }`}
                 >
-                  {isCheckingVoucher ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Gunakan'}
+                  {isCheckingVoucher ? (
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                  ) : isVoucherValid ? (
+                    'Batalkan'
+                  ) : (
+                    'Gunakan'
+                  )}
                 </button>
              </div>
              
              {isVoucherValid === true && (
-               <div className="mb-6 p-4 bg-green-50 text-green-700 rounded-xl flex items-center gap-2 border border-green-100 text-sm font-medium">
-                 <Check className="w-5 h-5"/> {voucherMessage}
-               </div>
-             )}
+                <div className="mb-6 p-4 bg-green-50 border border-green-100 rounded-xl">
+                  <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
+                    <Check className="w-5 h-5" />
+                    {voucherMessage}
+                  </div>
+                </div>
+              )}
              {isVoucherValid === false && (
                <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl flex items-center gap-2 border border-red-100 text-sm font-medium">
                  <X className="w-5 h-5"/> {voucherMessage}

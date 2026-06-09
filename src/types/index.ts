@@ -134,7 +134,11 @@ export interface Transaction {
   created_at: string;
   
   tickets?: Ticket[]; 
-  voucher?: Voucher;  
+  voucher?: {
+  id: number;
+  code: string;
+  discount_amount: number;
+};
 }
 
 // --- SCANNER ---

@@ -262,7 +262,9 @@ export default function TransactionPage() {
                           </span>
                           {trx.voucher && (
                             <span className="text-[10px] text-ringkai-olive bg-ringkai-olive/10 px-2 py-0.5 rounded flex items-center gap-1 font-semibold border border-ringkai-olive/20">
-                              <Tag className="w-3 h-3" /> {trx.voucher.code}
+                              <Tag className="w-3 h-3" />
+                              {trx.voucher.code}
+                              (-{formatRupiah(trx.voucher.discount_amount)})
                             </span>
                           )}
                         </div>
