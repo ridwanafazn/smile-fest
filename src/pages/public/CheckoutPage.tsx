@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -71,6 +71,9 @@ export default function CheckoutPage() {
   const [isCheckingVoucher, setIsCheckingVoucher] = useState(false);
   const [voucherMessage, setVoucherMessage] = useState('');
   const [voucherDiscount, setVoucherDiscount] = useState(0); 
+  useEffect(() => {
+  console.log('voucherDiscount changed:', voucherDiscount);
+}, [voucherDiscount]);
   const [quantity, setQuantity] = useState(1);
 
   // State Konflik Transaksi & UX State-Based Response
@@ -121,8 +124,18 @@ export default function CheckoutPage() {
     setIsCheckingVoucher(true);
     try {
       const res = await api.get(`/api/vouchers/validate`, { params: { code: watchVoucher.toUpperCase() } });
-      const discount = res.data.data?.discount_amount || 20000;
+      console.log('Voucher API response:', res.data);
+
+      const discount = Number(
+        res.data?.discount_amount ?? 0
+      );
+      
+      console.log('Discount extracted:', discount);
+
       setVoucherDiscount(discount);
+
+      console.log('setVoucherDiscount called');
+
       setIsVoucherValid(true);
       setVoucherMessage('Voucher berhasil diaplikasikan!');
       toast.success('Voucher valid');
@@ -137,6 +150,43 @@ export default function CheckoutPage() {
       setIsCheckingVoucher(false);
     }
   };
+
+//   useEffect(() => {
+//     console.log('voucherDiscount changed:', voucherDiscount);
+//   }, [voucherDiscount]);
+
+//   const handleCheckVoucher = async () => {
+//   console.log('Voucher button clicked');
+
+//   if (!voucherCode.trim()) {
+//     toast.error('Masukkan kode voucher');
+//     return;
+//   }
+
+//   try {
+//     const res = await api.get(
+//       `/api/vouchers/validate?code=${voucherCode}`
+//     );
+
+//     console.log('Voucher API response:', res.data);
+
+//     const discount = Number(
+//       res.data.data?.discount_amount ?? 0
+//     );
+
+//     console.log('Discount extracted:', discount);
+
+//     setVoucherDiscount(discount);
+
+//     console.log('setVoucherDiscount called');
+
+//     toast.success(
+//       `Voucher berhasil! Diskon Rp ${discount.toLocaleString('id-ID')}`
+//     );
+//   } catch (err: any) {
+//     console.error(err);
+//   }
+// };
 
   const onSubmitForm = async (data: FormValues) => {
     try {
@@ -211,6 +261,17 @@ export default function CheckoutPage() {
   const originalTotalPrice = activeTicket ? activeTicket.price * quantity : 0;
   const totalDiscount = voucherDiscount * quantity; 
   const finalPrice = Math.max(originalTotalPrice - totalDiscount, 0);
+
+  console.log('=== CHECKOUT DEBUG ===');
+  console.log({
+    activeTicket,
+    ticketPrice: activeTicket?.price,
+    voucherDiscount,
+    quantity,
+    originalTotalPrice,
+    totalDiscount,
+    finalPrice,
+  });
 
   // --- RENDER VIEW INSTRUKSI PEMBAYARAN ---
   if (step === 'instruction' && checkoutData) {
