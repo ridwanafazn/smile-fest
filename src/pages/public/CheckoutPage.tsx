@@ -71,9 +71,11 @@ export default function CheckoutPage() {
   const [isCheckingVoucher, setIsCheckingVoucher] = useState(false);
   const [voucherMessage, setVoucherMessage] = useState('');
   const [voucherDiscount, setVoucherDiscount] = useState(0); 
+
   useEffect(() => {
-  console.log('voucherDiscount changed:', voucherDiscount);
-}, [voucherDiscount]);
+    console.log('voucherDiscount changed:', voucherDiscount);
+  }, [voucherDiscount]);
+
   const [quantity, setQuantity] = useState(1);
 
   // State Konflik Transaksi & UX State-Based Response
@@ -88,7 +90,6 @@ export default function CheckoutPage() {
     }
   });
 
-  // Tambahkan getValues untuk mengeksekusi form ulang secara programatik
   const { register, handleSubmit, watch, setValue, getValues, control, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
@@ -126,14 +127,9 @@ export default function CheckoutPage() {
       const res = await api.get(`/api/vouchers/validate`, { params: { code: watchVoucher.toUpperCase() } });
       console.log('Voucher API response:', res.data);
 
-      const discount = Number(
-        res.data?.discount_amount ?? 0
-      );
-      
+      const discount = Number(res.data?.discount_amount ?? 0);
       console.log('Discount extracted:', discount);
-
       setVoucherDiscount(discount);
-
       console.log('setVoucherDiscount called');
 
       setIsVoucherValid(true);
@@ -151,50 +147,12 @@ export default function CheckoutPage() {
     }
   };
 
-//   useEffect(() => {
-//     console.log('voucherDiscount changed:', voucherDiscount);
-//   }, [voucherDiscount]);
-
-//   const handleCheckVoucher = async () => {
-//   console.log('Voucher button clicked');
-
-//   if (!voucherCode.trim()) {
-//     toast.error('Masukkan kode voucher');
-//     return;
-//   }
-
-//   try {
-//     const res = await api.get(
-//       `/api/vouchers/validate?code=${voucherCode}`
-//     );
-
-//     console.log('Voucher API response:', res.data);
-
-//     const discount = Number(
-//       res.data.data?.discount_amount ?? 0
-//     );
-
-//     console.log('Discount extracted:', discount);
-
-//     setVoucherDiscount(discount);
-
-//     console.log('setVoucherDiscount called');
-
-//     toast.success(
-//       `Voucher berhasil! Diskon Rp ${discount.toLocaleString('id-ID')}`
-//     );
-//   } catch (err: any) {
-//     console.error(err);
-//   }
-// };
-
-
   const handleRemoveVoucher = () => {
-  setVoucherDiscount(0);
-  setIsVoucherValid(null);
-  setVoucherMessage('');
-  setValue('voucher_code', '');
-};
+    setVoucherDiscount(0);
+    setIsVoucherValid(null);
+    setVoucherMessage('');
+    setValue('voucher_code', '');
+  };
 
   const onSubmitForm = async (data: FormValues) => {
     try {
@@ -212,17 +170,32 @@ export default function CheckoutPage() {
       setStep('instruction');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       toast.success('Tiket berhasil direservasi!');
-      setConflictData(null); // Bersihkan state konflik jika sukses
+      setConflictData(null); 
     } catch (error: any) {
-      // CEGAT ERROR 409 DARI BACKEND DI SINI
-      if (error.response?.status === 409 && error.response?.data?.order_id) {
-        setConflictData({
-          order_id: error.response.data.order_id,
-          status: error.response.data.status
-        });
-      } else {
-        toast.error(error.response?.data?.error || 'Gagal membuat transaksi. Kuota mungkin habis.');
+      const errorPayload = error.response?.data || {};
+      
+      // Ambil pesan kesalahan dari layer meta backend atau object root-nya
+      const backendMessage = errorPayload?.meta?.message || errorPayload?.message || errorPayload?.error || 'Gagal membuat transaksi. Kuota mungkin habis.';
+
+      // CEGAT ERROR 409 DENGAN JALUR DATA YANG LEBIH FLEKSIBEL
+      if (error.response?.status === 409) {
+        
+        // Coba cari order_id di berbagai kemungkinan struktur response backend
+        const orderId = errorPayload?.data?.order_id || errorPayload?.order_id || errorPayload?.errors?.order_id;
+        const statusData = errorPayload?.data?.status || errorPayload?.status || errorPayload?.errors?.status || 'pending';
+
+        if (orderId) {
+          // Menemukan Order ID -> Buka Modal
+          setConflictData({
+            order_id: orderId,
+            status: statusData
+          });
+          return; // Hentikan fungsi di sini agar TIDAK memunculkan toast numpuk
+        }
       }
+
+      // Jika bukan 409 ATAU tidak menemukan order_id, munculkan pesan error
+      toast.error(backendMessage);
     }
   };
 
@@ -233,7 +206,6 @@ export default function CheckoutPage() {
       await transactionService.cancelOrder(conflictData.order_id);
       toast.success('Pesanan lama berhasil dibatalkan. Memproses pesanan baru...');
       setConflictData(null);
-      // Eksekusi ulang proses order dengan data form yang sedang terisi saat ini
       onSubmitForm(getValues());
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Gagal membatalkan pesanan lama');
@@ -269,17 +241,6 @@ export default function CheckoutPage() {
   const originalTotalPrice = activeTicket ? activeTicket.price * quantity : 0;
   const totalDiscount = voucherDiscount * quantity; 
   const finalPrice = Math.max(originalTotalPrice - totalDiscount, 0);
-
-  console.log('=== CHECKOUT DEBUG ===');
-  console.log({
-    activeTicket,
-    ticketPrice: activeTicket?.price,
-    voucherDiscount,
-    quantity,
-    originalTotalPrice,
-    totalDiscount,
-    finalPrice,
-  });
 
   // --- RENDER VIEW INSTRUKSI PEMBAYARAN ---
   if (step === 'instruction' && checkoutData) {
@@ -367,11 +328,11 @@ export default function CheckoutPage() {
 
   // --- RENDER VIEW FORM CHECKOUT UTAMA ---
   return (
-    <div className="flex-1 flex flex-col items-center justify-center py-12 px-6 animate-in fade-in relative">
-      
-      {/* --- MODAL PENGINGAT TRANSAKSI GANDA (STATE-BASED UI) --- */}
+    <>
+      {/* --- MODAL PENGINGAT TRANSAKSI GANDA --- 
+          (Dipindah ke tingkat Fragment teratas & Z-Index diperbesar agar kebal dari potong layout) */}
       {conflictData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" onClick={() => setConflictData(null)}></div>
           <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl relative z-10 animate-in zoom-in-95 duration-200 overflow-hidden">
             <div className="p-8 md:p-10 space-y-6">
@@ -399,7 +360,6 @@ export default function CheckoutPage() {
               </div>
 
               <div className="pt-4 space-y-3">
-                {/* Tombol Lanjut ke Lacak Tiket (Tersedia untuk semua status menggantung) */}
                 <button
                   type="button"
                   onClick={() => navigate(`/track-ticket?order_id=${conflictData.order_id}&email=${watchEmail}`)}
@@ -408,7 +368,6 @@ export default function CheckoutPage() {
                   {conflictData.status === 'pending' ? 'Lanjut Bayar Pesanan Lama' : 'Lihat Status Verifikasi'} <ArrowRight className="w-4 h-4" />
                 </button>
 
-                {/* Tombol Batalkan (HANYA MUNCUL JIKA STATUS PENDING) */}
                 {conflictData.status === 'pending' && (
                   <button
                     type="button"
@@ -433,284 +392,284 @@ export default function CheckoutPage() {
           </div>
         </div>
       )}
-      {/* -------------------------------------------------------- */}
 
-
-      <div className="w-full max-w-2xl">
-        <div className="mb-10 text-center">
-          <h1 className="text-3xl md:text-4xl font-serif mb-3 text-stone-900">Amankan Ruangmu.</h1>
-          <p className="text-stone-500">Lengkapi data diri untuk menerbitkan e-ticket.</p>
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmitForm)} className="bg-white p-6 md:p-12 rounded-[2rem] shadow-sm border border-stone-100 space-y-10 relative overflow-hidden">
-          
-          {/* Section: Pemilihan Tiket & Kuantitas */}
-          <div className="space-y-4">
-            <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 ml-1">Ketersediaan Tiket</label>
-            {isTicketsLoading ? (
-              <div className="flex items-center gap-2 text-stone-500 p-4 bg-stone-50 rounded-xl">
-                <Loader2 className="w-4 h-4 animate-spin" /> Memuat ketersediaan...
-              </div>
-            ) : activeTicket ? (
-              <div className="flex items-center justify-between p-5 rounded-2xl border-2 border-stone-900 bg-stone-50/50 shadow-sm transition-all">
-                <div>
-                  <span className="inline-block px-2.5 py-1 bg-ringkai-olive/10 text-ringkai-olive text-[10px] font-bold uppercase tracking-widest rounded-full mb-2">Tersedia</span>
-                  <h3 className="font-medium text-stone-800 text-lg leading-none mb-1">{activeTicket.name}</h3>
-                  <p className="font-serif text-stone-500">{formatRupiah(activeTicket.price)} <span className="text-xs font-sans">/ tiket</span></p>
-                </div>
-                
-                <div className="flex items-center gap-3 bg-white p-1 rounded-xl border border-stone-200 shadow-sm">
-                  <button type="button" onClick={() => handleQuantityChange(quantity - 1)} disabled={quantity <= 1} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 disabled:opacity-30 transition-colors">
-                    <Minus className="w-4 h-4 text-stone-700" />
-                  </button>
-                  <span className="font-medium w-4 text-center select-none">{quantity}</span>
-                  <button type="button" onClick={() => handleQuantityChange(quantity + 1)} disabled={quantity >= 5} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 disabled:opacity-30 transition-colors">
-                    <Plus className="w-4 h-4 text-stone-700" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-red-50 text-red-600 p-4 rounded-xl flex items-start gap-3 border border-red-100">
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <p className="text-sm font-medium">Mohon maaf, saat ini belum ada tiket yang dibuka.</p>
-              </div>
-            )}
-            <input type="hidden" {...register('ticket_type')} />
+      <div className="flex-1 flex flex-col items-center justify-center py-12 px-6 animate-in fade-in relative">
+        <div className="w-full max-w-2xl">
+          <div className="mb-10 text-center">
+            <h1 className="text-3xl md:text-4xl font-serif mb-3 text-stone-900">Amankan Ruangmu.</h1>
+            <p className="text-stone-500">Lengkapi data diri untuk menerbitkan e-ticket.</p>
           </div>
 
-          {/* Section: Identitas Personal Terpadu (Vertikal Tersusun Ke Bawah) */}
-          <div className="space-y-5 pt-8 border-t border-stone-100">
-             <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 rounded-full bg-stone-100 text-stone-600 flex items-center justify-center"><UserCheck className="w-4 h-4"/></div>
-                <h3 className="font-serif text-xl text-stone-900">Data Personal</h3>
-             </div>
+          <form onSubmit={handleSubmit(onSubmitForm)} className="bg-white p-6 md:p-12 rounded-[2rem] shadow-sm border border-stone-100 space-y-10 relative overflow-hidden">
             
-             <div>
-               <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Nama Lengkap</label>
-               <input {...register('customer_name')} type="text" placeholder="Nama Lengkap" className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.customer_name ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`} />
-               {errors.customer_name && <p className="mt-1 text-xs text-red-500 ml-1">{errors.customer_name.message}</p>}
-             </div>
-             
-             <div>
-               <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Email Aktif</label>
-               <input {...register('customer_email')} type="email" placeholder="Alamat Email" className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.customer_email ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`} />
-               {errors.customer_email && <p className="mt-1 text-xs text-red-500 ml-1">{errors.customer_email.message}</p>}
-             </div>
-             
-             <div>
-               <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">No. WhatsApp</label>
-               <input {...register('customer_phone')} type="text" placeholder="Nomor" className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.customer_phone ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`} />
-               {errors.customer_phone && <p className="mt-1 text-xs text-red-500 ml-1">{errors.customer_phone.message}</p>}
-             </div>
-             
-             <div>
-               <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Usia</label>
-               <input {...register('profile_age')} type="number" placeholder="20" className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.profile_age ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`} />
-               {errors.profile_age && <p className="mt-1 text-xs text-red-500 ml-1">{errors.profile_age.message}</p>}
-             </div>
-             
-             <div>
-               <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Domisili Kota</label>
-               <input {...register('profile_city')} type="text" placeholder="Domisili" className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.profile_city ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`} />
-               {errors.profile_city && <p className="mt-1 text-xs text-red-500 ml-1">{errors.profile_city.message}</p>}
-             </div>
-             
-             <div>
-               <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Pendidikan</label>
-               <select {...register('profile_education')} className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors text-stone-700 ${errors.profile_education ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`}>
-                 <option value="">Pilih...</option>
-                 <option value="SMA/SMK">SMA/SMK</option>
-                 <option value="D3">D3</option>
-                 <option value="S1">S1</option>
-                 <option value="S2/S3">S2/S3</option>
-                 <option value="Lainnya">Lainnya</option>
-               </select>
-               {errors.profile_education && <p className="mt-1 text-xs text-red-500 ml-1">{errors.profile_education.message}</p>}
-             </div>
-             
-             <div>
-               <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Pekerjaan</label>
-               <select {...register('profile_job')} className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors text-stone-700 ${errors.profile_job ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`}>
-                 <option value="">Pilih...</option>
-                 {JOB_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-               </select>
-               {errors.profile_job && <p className="mt-1 text-xs text-red-500 ml-1">{errors.profile_job.message}</p>}
-             </div>
-          </div>
-
-          {/* Section: Kuesioner (Multiple Checkbox Klasik) */}
-          <div className="space-y-8 pt-8 border-t border-stone-100 bg-stone-50/50 p-6 md:p-10 -mx-6 md:-mx-12">
-             <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 rounded-full bg-ringkai-olive text-white flex items-center justify-center"><ClipboardList className="w-4 h-4"/></div>
-                <div>
-                  <h3 className="font-serif text-xl text-stone-900 leading-tight">Profil & Kontribusi</h3>
-                  <p className="text-xs text-stone-500 mt-1">Membantu kami mewujudkan ekosistem acara yang lebih terarah.</p>
+            {/* Section: Pemilihan Tiket & Kuantitas */}
+            <div className="space-y-4">
+              <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 ml-1">Ketersediaan Tiket</label>
+              {isTicketsLoading ? (
+                <div className="flex items-center gap-2 text-stone-500 p-4 bg-stone-50 rounded-xl">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Memuat ketersediaan...
                 </div>
-             </div>
-
-            {/* Kuesioner 1 */}
-            <div>
-              <p className="text-sm font-bold text-stone-800 mb-4">Hal apa yang paling membuat kamu tertarik mengikuti SMILE FEST?</p>
-              <div className="grid grid-cols-1 gap-2">
-                {INTEREST_OPTIONS.map((opt) => (
-                  <label key={opt} className="flex items-start gap-3 p-3 bg-white border border-stone-200 rounded-xl cursor-pointer hover:bg-stone-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      value={opt} 
-                      {...register('interest_reasons')} 
-                      className="mt-1 w-4 h-4 text-ringkai-olive border-stone-300 rounded focus:ring-ringkai-olive" 
-                    />
-                    <span className="text-sm text-stone-600 leading-tight">{opt}</span>
-                  </label>
-                ))}
-              </div>
-              {errors.interest_reasons && <p className="mt-2 text-xs text-red-500">{errors.interest_reasons.message}</p>}
-            </div>
-
-            {/* Kuesioner 2 */}
-            <div>
-              <p className="text-sm font-bold text-stone-800 mb-4">Langkah kecil apa yang sedang kamu usahakan untuk hidup lebih mindful & sustainable? </p>
-              <div className="grid grid-cols-1 gap-2">
-                {STEP_OPTIONS.map((opt) => (
-                  <label key={opt} className="flex items-start gap-3 p-3 bg-white border border-stone-200 rounded-xl cursor-pointer hover:bg-stone-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      value={opt} 
-                      {...register('sustainability_steps')} 
-                      className="mt-1 w-4 h-4 text-ringkai-olive border-stone-300 rounded focus:ring-ringkai-olive" 
-                    />
-                    <span className="text-sm text-stone-600 leading-tight">{opt}</span>
-                  </label>
-                ))}
-              </div>
-              {errors.sustainability_steps && <p className="mt-2 text-xs text-red-500">{errors.sustainability_steps.message}</p>}
-            </div>
-
-            {/* Kontribusi (Radio Button) */}
-            <div className="pt-6 border-t border-stone-200/60">
-              <p className="text-sm font-bold text-stone-800 mb-4">
-                SMILE FEST adalah langkah awal. Bersediakah Anda terlibat lebih jauh dalam gerakan ini ke depannya?
-              </p>
-              <div className="grid grid-cols-1 gap-2">
-                {CONTRIBUTION_OPTIONS.map((opt) => (
-                  <label key={opt} className="flex items-start gap-3 p-3 bg-white border border-stone-200 rounded-xl cursor-pointer hover:bg-stone-50 transition-colors">
-                    <input 
-                      type="radio" 
-                      value={opt} 
-                      {...register('contribution_role')} 
-                      className="mt-1 w-4 h-4 text-ringkai-olive border-stone-300 focus:ring-ringkai-olive" 
-                    />
-                    <span className="text-sm text-stone-600 leading-tight">{opt}</span>
-                  </label>
-                ))}
-              </div>
-              {errors.contribution_role && <p className="mt-2 text-xs text-red-500">{errors.contribution_role.message}</p>}
-            </div>
-          </div>
-
-          {/* Section: Data Pemegang Tiket */}
-          <div className="space-y-4 pt-8 border-t border-stone-100">
-            <div className="flex items-center gap-2 mb-6">
-               <Users className="w-5 h-5 text-stone-400" />
-               <label className="block text-xs font-bold uppercase tracking-widest text-stone-500">Daftar Pemegang Tiket (Cetak E-Ticket)</label>
-            </div>
-            
-            <div className="space-y-3">
-              {fields.map((field, index) => (
-                <div key={field.id} className="relative">
-                  <input
-                    {...register(`attendees.${index}.name`)}
-                    type="text"
-                    placeholder="Nama Pemegang Tiket"
-                    className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.attendees?.[index]?.name ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`}
-                  />
-                  {errors.attendees?.[index]?.name && <p className="mt-1 text-xs text-red-500 ml-1">{errors.attendees[index].name.message}</p>}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Section: Voucher & Submit */}
-          <div className="pt-8 border-t border-stone-100">
-             <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-3 ml-1">Kode Voucher / Partner (Opsional)</label>
-             <div className="flex flex-col sm:flex-row gap-3 mb-8">
-                <input
-                  {...register('voucher_code')}
-                  type="text"
-                  placeholder="KODE PROMO"
-                  className="flex-1 px-5 py-3.5 bg-stone-50 border border-stone-200 rounded-xl focus:border-ringkai-olive transition-colors uppercase font-mono tracking-widest"
-                />
-                <button
-                  type="button"
-                  onClick={
-                    isVoucherValid
-                      ? handleRemoveVoucher
-                      : handleCheckVoucher
-                  }
-                  disabled={
-                    isCheckingVoucher ||
-                    (!watchVoucher && !isVoucherValid)
-                  }
-                  className={`w-full sm:w-36 py-3.5 text-white font-bold rounded-xl transition-colors ${
-                    isVoucherValid
-                      ? 'bg-stone-900 hover:bg-ringkai-olive'
-                      : 'bg-stone-900 hover:bg-ringkai-olive'
-                  }`}
-                >
-                  {isCheckingVoucher ? (
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-                  ) : isVoucherValid ? (
-                    'Batalkan'
-                  ) : (
-                    'Gunakan'
-                  )}
-                </button>
-             </div>
-             
-             {isVoucherValid === true && (
-                <div className="mb-6 p-4 bg-green-50 border border-green-100 rounded-xl">
-                  <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
-                    <Check className="w-5 h-5" />
-                    {voucherMessage}
+              ) : activeTicket ? (
+                <div className="flex items-center justify-between p-5 rounded-2xl border-2 border-stone-900 bg-stone-50/50 shadow-sm transition-all">
+                  <div>
+                    <span className="inline-block px-2.5 py-1 bg-ringkai-olive/10 text-ringkai-olive text-[10px] font-bold uppercase tracking-widest rounded-full mb-2">Tersedia</span>
+                    <h3 className="font-medium text-stone-800 text-lg leading-none mb-1">{activeTicket.name}</h3>
+                    <p className="font-serif text-stone-500">{formatRupiah(activeTicket.price)} <span className="text-xs font-sans">/ tiket</span></p>
                   </div>
+                  
+                  <div className="flex items-center gap-3 bg-white p-1 rounded-xl border border-stone-200 shadow-sm">
+                    <button type="button" onClick={() => handleQuantityChange(quantity - 1)} disabled={quantity <= 1} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 disabled:opacity-30 transition-colors">
+                      <Minus className="w-4 h-4 text-stone-700" />
+                    </button>
+                    <span className="font-medium w-4 text-center select-none">{quantity}</span>
+                    <button type="button" onClick={() => handleQuantityChange(quantity + 1)} disabled={quantity >= 5} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 disabled:opacity-30 transition-colors">
+                      <Plus className="w-4 h-4 text-stone-700" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-red-50 text-red-600 p-4 rounded-xl flex items-start gap-3 border border-red-100">
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <p className="text-sm font-medium">Mohon maaf, saat ini belum ada tiket yang dibuka.</p>
                 </div>
               )}
-             {isVoucherValid === false && (
-               <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl flex items-center gap-2 border border-red-100 text-sm font-medium">
-                 <X className="w-5 h-5"/> {voucherMessage}
-               </div>
-             )}
+              <input type="hidden" {...register('ticket_type')} />
+            </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting || !activeTicket}
-              className="w-full bg-stone-900 text-white py-4 px-5 md:py-5 md:px-8 rounded-2xl font-bold flex items-center justify-between gap-3 hover:bg-ringkai-olive transition-all duration-300 disabled:opacity-70 shadow-lg group active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-2 md:gap-3 shrink-0">
-                {isSubmitting ? (
-                  <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
-                ) : (
-                  <TicketIcon className="w-5 h-5 md:w-6 md:h-6 group-hover:-rotate-12 transition-transform" />
-                )}
-                <span className="text-sm md:text-lg text-left leading-tight">
-                  Lanjut<br className="md:hidden" /> Pembayaran
-                </span>
+            {/* Section: Identitas Personal Terpadu (Vertikal Tersusun Ke Bawah) */}
+            <div className="space-y-5 pt-8 border-t border-stone-100">
+               <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-stone-100 text-stone-600 flex items-center justify-center"><UserCheck className="w-4 h-4"/></div>
+                  <h3 className="font-serif text-xl text-stone-900">Data Personal</h3>
+               </div>
+              
+               <div>
+                 <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Nama Lengkap</label>
+                 <input {...register('customer_name')} type="text" placeholder="Nama Lengkap" className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.customer_name ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`} />
+                 {errors.customer_name && <p className="mt-1 text-xs text-red-500 ml-1">{errors.customer_name.message}</p>}
+               </div>
+               
+               <div>
+                 <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Email Aktif</label>
+                 <input {...register('customer_email')} type="email" placeholder="Alamat Email" className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.customer_email ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`} />
+                 {errors.customer_email && <p className="mt-1 text-xs text-red-500 ml-1">{errors.customer_email.message}</p>}
+               </div>
+               
+               <div>
+                 <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">No. WhatsApp</label>
+                 <input {...register('customer_phone')} type="text" placeholder="Nomor" className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.customer_phone ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`} />
+                 {errors.customer_phone && <p className="mt-1 text-xs text-red-500 ml-1">{errors.customer_phone.message}</p>}
+               </div>
+               
+               <div>
+                 <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Usia</label>
+                 <input {...register('profile_age')} type="number" placeholder="20" className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.profile_age ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`} />
+                 {errors.profile_age && <p className="mt-1 text-xs text-red-500 ml-1">{errors.profile_age.message}</p>}
+               </div>
+               
+               <div>
+                 <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Domisili Kota</label>
+                 <input {...register('profile_city')} type="text" placeholder="Domisili" className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.profile_city ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`} />
+                 {errors.profile_city && <p className="mt-1 text-xs text-red-500 ml-1">{errors.profile_city.message}</p>}
+               </div>
+               
+               <div>
+                 <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Pendidikan</label>
+                 <select {...register('profile_education')} className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors text-stone-700 ${errors.profile_education ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`}>
+                   <option value="">Pilih...</option>
+                   <option value="SMA/SMK">SMA/SMK</option>
+                   <option value="D3">D3</option>
+                   <option value="S1">S1</option>
+                   <option value="S2/S3">S2/S3</option>
+                   <option value="Lainnya">Lainnya</option>
+                 </select>
+                 {errors.profile_education && <p className="mt-1 text-xs text-red-500 ml-1">{errors.profile_education.message}</p>}
+               </div>
+               
+               <div>
+                 <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2 ml-1">Pekerjaan</label>
+                 <select {...register('profile_job')} className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors text-stone-700 ${errors.profile_job ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`}>
+                   <option value="">Pilih...</option>
+                   {JOB_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                 </select>
+                 {errors.profile_job && <p className="mt-1 text-xs text-red-500 ml-1">{errors.profile_job.message}</p>}
+               </div>
+            </div>
+
+            {/* Section: Kuesioner (Multiple Checkbox Klasik) */}
+            <div className="space-y-8 pt-8 border-t border-stone-100 bg-stone-50/50 p-6 md:p-10 -mx-6 md:-mx-12">
+               <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 rounded-full bg-ringkai-olive text-white flex items-center justify-center"><ClipboardList className="w-4 h-4"/></div>
+                  <div>
+                    <h3 className="font-serif text-xl text-stone-900 leading-tight">Profil & Kontribusi</h3>
+                    <p className="text-xs text-stone-500 mt-1">Membantu kami mewujudkan ekosistem acara yang lebih terarah.</p>
+                  </div>
+               </div>
+
+              {/* Kuesioner 1 */}
+              <div>
+                <p className="text-sm font-bold text-stone-800 mb-4">Hal apa yang paling membuat kamu tertarik mengikuti SMILE FEST?</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {INTEREST_OPTIONS.map((opt) => (
+                    <label key={opt} className="flex items-start gap-3 p-3 bg-white border border-stone-200 rounded-xl cursor-pointer hover:bg-stone-50 transition-colors">
+                      <input 
+                        type="checkbox" 
+                        value={opt} 
+                        {...register('interest_reasons')} 
+                        className="mt-1 w-4 h-4 text-ringkai-olive border-stone-300 rounded focus:ring-ringkai-olive" 
+                      />
+                      <span className="text-sm text-stone-600 leading-tight">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+                {errors.interest_reasons && <p className="mt-2 text-xs text-red-500">{errors.interest_reasons.message}</p>}
+              </div>
+
+              {/* Kuesioner 2 */}
+              <div>
+                <p className="text-sm font-bold text-stone-800 mb-4">Langkah kecil apa yang sedang kamu usahakan untuk hidup lebih mindful & sustainable? </p>
+                <div className="grid grid-cols-1 gap-2">
+                  {STEP_OPTIONS.map((opt) => (
+                    <label key={opt} className="flex items-start gap-3 p-3 bg-white border border-stone-200 rounded-xl cursor-pointer hover:bg-stone-50 transition-colors">
+                      <input 
+                        type="checkbox" 
+                        value={opt} 
+                        {...register('sustainability_steps')} 
+                        className="mt-1 w-4 h-4 text-ringkai-olive border-stone-300 rounded focus:ring-ringkai-olive" 
+                      />
+                      <span className="text-sm text-stone-600 leading-tight">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+                {errors.sustainability_steps && <p className="mt-2 text-xs text-red-500">{errors.sustainability_steps.message}</p>}
+              </div>
+
+              {/* Kontribusi (Radio Button) */}
+              <div className="pt-6 border-t border-stone-200/60">
+                <p className="text-sm font-bold text-stone-800 mb-4">
+                  SMILE FEST adalah langkah awal. Bersediakah Anda terlibat lebih jauh dalam gerakan ini ke depannya?
+                </p>
+                <div className="grid grid-cols-1 gap-2">
+                  {CONTRIBUTION_OPTIONS.map((opt) => (
+                    <label key={opt} className="flex items-start gap-3 p-3 bg-white border border-stone-200 rounded-xl cursor-pointer hover:bg-stone-50 transition-colors">
+                      <input 
+                        type="radio" 
+                        value={opt} 
+                        {...register('contribution_role')} 
+                        className="mt-1 w-4 h-4 text-ringkai-olive border-stone-300 focus:ring-ringkai-olive" 
+                      />
+                      <span className="text-sm text-stone-600 leading-tight">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+                {errors.contribution_role && <p className="mt-2 text-xs text-red-500">{errors.contribution_role.message}</p>}
+              </div>
+            </div>
+
+            {/* Section: Data Pemegang Tiket */}
+            <div className="space-y-4 pt-8 border-t border-stone-100">
+              <div className="flex items-center gap-2 mb-6">
+                 <Users className="w-5 h-5 text-stone-400" />
+                 <label className="block text-xs font-bold uppercase tracking-widest text-stone-500">Daftar Pemegang Tiket (Cetak E-Ticket)</label>
               </div>
               
-              <div className="text-right truncate">
-                {isVoucherValid && voucherDiscount > 0 && (
-                  <div className="text-stone-400 line-through text-[10px] md:text-xs font-normal">
-                    {formatRupiah(originalTotalPrice)}
+              <div className="space-y-3">
+                {fields.map((field, index) => (
+                  <div key={field.id} className="relative">
+                    <input
+                      {...register(`attendees.${index}.name`)}
+                      type="text"
+                      placeholder="Nama Pemegang Tiket"
+                      className={`w-full px-5 py-3.5 bg-stone-50 rounded-xl border transition-colors ${errors.attendees?.[index]?.name ? 'border-red-400' : 'border-stone-200 focus:border-ringkai-olive'}`}
+                    />
+                    {errors.attendees?.[index]?.name && <p className="mt-1 text-xs text-red-500 ml-1">{errors.attendees[index].name.message}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Section: Voucher & Submit */}
+            <div className="pt-8 border-t border-stone-100">
+               <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-3 ml-1">Kode Voucher / Partner (Opsional)</label>
+               <div className="flex flex-col sm:flex-row gap-3 mb-8">
+                  <input
+                    {...register('voucher_code')}
+                    type="text"
+                    placeholder="KODE PROMO"
+                    className="flex-1 px-5 py-3.5 bg-stone-50 border border-stone-200 rounded-xl focus:border-ringkai-olive transition-colors uppercase font-mono tracking-widest"
+                  />
+                  <button
+                    type="button"
+                    onClick={
+                      isVoucherValid
+                        ? handleRemoveVoucher
+                        : handleCheckVoucher
+                    }
+                    disabled={
+                      isCheckingVoucher ||
+                      (!watchVoucher && !isVoucherValid)
+                    }
+                    className={`w-full sm:w-36 py-3.5 text-white font-bold rounded-xl transition-colors ${
+                      isVoucherValid
+                        ? 'bg-stone-900 hover:bg-ringkai-olive'
+                        : 'bg-stone-900 hover:bg-ringkai-olive'
+                    }`}
+                  >
+                    {isCheckingVoucher ? (
+                      <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                    ) : isVoucherValid ? (
+                      'Batalkan'
+                    ) : (
+                      'Gunakan'
+                    )}
+                  </button>
+               </div>
+               
+               {isVoucherValid === true && (
+                  <div className="mb-6 p-4 bg-green-50 border border-green-100 rounded-xl">
+                    <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
+                      <Check className="w-5 h-5" />
+                      {voucherMessage}
+                    </div>
                   </div>
                 )}
-                <div className="text-lg md:text-2xl font-serif leading-none tracking-wide">
-                  {formatRupiah(finalPrice)}
+               {isVoucherValid === false && (
+                 <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl flex items-center gap-2 border border-red-100 text-sm font-medium">
+                   <X className="w-5 h-5"/> {voucherMessage}
+                 </div>
+               )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting || !activeTicket}
+                className="w-full bg-stone-900 text-white py-4 px-5 md:py-5 md:px-8 rounded-2xl font-bold flex items-center justify-between gap-3 hover:bg-ringkai-olive transition-all duration-300 disabled:opacity-70 shadow-lg group active:scale-[0.98]"
+              >
+                <div className="flex items-center gap-2 md:gap-3 shrink-0">
+                  {isSubmitting ? (
+                    <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
+                  ) : (
+                    <TicketIcon className="w-5 h-5 md:w-6 md:h-6 group-hover:-rotate-12 transition-transform" />
+                  )}
+                  <span className="text-sm md:text-lg text-left leading-tight">
+                    Lanjut<br className="md:hidden" /> Pembayaran
+                  </span>
                 </div>
-              </div>
-            </button>
-          </div>
-        </form>
+                
+                <div className="text-right truncate">
+                  {isVoucherValid && voucherDiscount > 0 && (
+                    <div className="text-stone-400 line-through text-[10px] md:text-xs font-normal">
+                      {formatRupiah(originalTotalPrice)}
+                    </div>
+                  )}
+                  <div className="text-lg md:text-2xl font-serif leading-none tracking-wide">
+                    {formatRupiah(finalPrice)}
+                  </div>
+                </div>
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
