@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import type { Transaction } from '../../types';
-import { Search, Loader2, FileX, Tag, ChevronDown, ChevronUp, Users, ClipboardList, Download, Image as ImageIcon, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
-import { formatRupiah, escapeCsv } from '../../utils/formatters';
+import { Search, Loader2, FileX, Tag, ChevronDown, ChevronUp, Users, ClipboardList, Download, Image as ImageIcon, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, FileText } from 'lucide-react';
+import { formatRupiah } from '../../utils/formatters';
 import { toast } from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 
 export default function TransactionPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -14,10 +15,26 @@ export default function TransactionPage() {
   // STATE PREVIEW FOTO
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
+  // STATE EXPORT MENU & LOADING
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
   // STATE SERVER-SIDE PAGINATION & FILTER
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('all');
   const limit = 10;
+
+  // Tutup export menu saat klik di luar area
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -53,65 +70,110 @@ export default function TransactionPage() {
     setExpandedRowId(prev => prev === id ? null : id);
   };
 
-  const handleDownloadCsv = () => {
-    if (!transactions || transactions.length === 0) {
-      toast.error('Tidak ada data untuk diunduh pada halaman ini');
-      return;
-    }
+  // --- FUNGSI EXPORT DATA MENYELURUH (ALL PAGES) ---
+  const handleExport = async (format: 'csv' | 'xlsx') => {
+    setIsExporting(true);
+    setIsExportMenuOpen(false);
+    const toastId = toast.loading('Menarik seluruh data dari server...');
 
-    const headers = [
-      'Order ID', 'Waktu Transaksi', 'Status', 'Sesi/Batch', 'Total Bayar', 'Kode Unik', 'Kode Voucher', 'Jumlah Tiket',
-      'Nama Pemesan', 'Email Pemesan', 'No WhatsApp', 'Gender',
-      'Usia', 'Domisili', 'Pendidikan', 'Pekerjaan', 'Asal Komunitas', 'Info Acara',
-      'Alasan Ketertarikan', 'Langkah Keberlanjutan', 'Peran Kontribusi',
-      'Daftar Pemegang Tiket'
-    ];
+    try {
+      // 1. Tarik semua data menggunakan loop (bypass limit backend secara aman)
+      let allData: Transaction[] = [];
+      let fetchPage = 1;
+      let totalPages = 1;
 
-    const csvRows = [headers.join(',')]; 
+      do {
+        // Update pesan toast agar admin tahu prosesnya sedang berjalan
+        toast.loading(`Menarik data halaman ${fetchPage} dari ${totalPages === 1 ? '...' : totalPages}...`, { id: toastId });
+        
+        const response = await api.get('/api/admin/transactions', {
+          params: { 
+            search: debouncedSearch,
+            status: statusFilter,
+            page: fetchPage,
+            limit: 100 // Gunakan batas maksimal 100 yang masih diizinkan Backend
+          }
+        });
+        
+        // Ekstrak data dan metadata paginasi dari response (berkat interceptor auto-unboxing)
+        const pageData = response.data?.data || [];
+        const paginationMeta = response.data?.pagination;
+        
+        // Gabungkan data halaman ini ke array penampung utama
+        allData = [...allData, ...pageData];
+        
+        // Perbarui target total halaman
+        totalPages = paginationMeta?.total_pages || 1;
+        fetchPage++;
+        
+      } while (fetchPage <= totalPages); // Terus looping sampai halaman terakhir tercapai
 
-    transactions.forEach(trx => {
-      const attendeeNames = trx.tickets?.map(t => t.attendee_name).join(' | ') || '-';
+      if (allData.length === 0) {
+        toast.error('Tidak ada data untuk diekspor', { id: toastId });
+        return;
+      }
+
+      toast.loading('Memformat dokumen...', { id: toastId });
+
+      // 2. Pemetaan dan pembersihan data agar rapi di Excel/CSV
+      const exportData = allData.map(trx => {
+        const attendeeNames = trx.tickets?.map(t => t.attendee_name).join(', ') || '-';
+        const ticketVariants = trx.tickets?.map(t => t.ticket_variant_id).join(', ') || '-';
+
+        return {
+          'Order ID': trx.id,
+          'Waktu Transaksi': new Date(trx.created_at).toLocaleString('id-ID'),
+          'Status': trx.status.toUpperCase(),
+          'Sesi / Batch': trx.session_batch || 1,
+          'Total Bayar (Rp)': trx.total_amount,
+          'Kode Unik': trx.unique_code || 0,
+          'Voucher Digunakan': trx.voucher?.code || '-',
+          'Jumlah Tiket': trx.tickets?.length || 0,
+          'Nama Pembeli': trx.customer_name,
+          'Email Pembeli': trx.customer_email,
+          'No. WhatsApp': trx.customer_phone ? `'${trx.customer_phone}` : '-', // Kutip agar tidak jadi rumus/angka desimal
+          'Gender': trx.customer_gender || '-',
+          'Usia': trx.profile_age || '-',
+          'Domisili': trx.profile_city || '-',
+          'Pendidikan': trx.profile_education || '-',
+          'Pekerjaan': trx.profile_job || '-',
+          'Asal Komunitas': trx.community_affiliation || '-',
+          'Sumber Info': trx.information_source || '-',
+          'Alasan Ketertarikan': trx.interest_reasons || '-',
+          'Langkah Keberlanjutan': trx.sustainability_steps || '-',
+          'Kesediaan Kontribusi': trx.contribution_role || '-',
+          'Nama Pemegang Tiket': attendeeNames,
+          'Varian Tiket': ticketVariants
+        };
+      });
+
+      // 3. Konversi ke Worksheet SheetJS
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      // 4. Pengaturan Lebar Kolom Otomatis untuk Kerapian XLSX
+      const columnWidths = Object.keys(exportData[0]).map(key => ({
+        wch: Math.max(key.length, 15) // Minimal lebar 15 karakter
+      }));
+      worksheet['!cols'] = columnWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Riwayat Transaksi');
+
+      // 5. Simpan file berdasarkan format
+      const fileName = `SMILE_FEST_Laporan_Transaksi_${new Date().toISOString().split('T')[0]}`;
       
-      const rowData = [
-        trx.id,
-        new Date(trx.created_at).toLocaleString('id-ID'),
-        trx.status,
-        trx.session_batch || 1,
-        trx.total_amount,
-        trx.unique_code || 0,
-        trx.voucher?.code || '-',
-        trx.tickets?.length || 0,
-        trx.customer_name,
-        trx.customer_email,
-        `'${trx.customer_phone}`, 
-        trx.customer_gender || '-',
-        trx.profile_age || '-',
-        trx.profile_city || '-',
-        trx.profile_education || '-',
-        trx.profile_job || '-',
-        trx.community_affiliation || '-',
-        trx.information_source || '-',
-        trx.interest_reasons || '-',
-        trx.sustainability_steps || '-',
-        trx.contribution_role || '-',
-        attendeeNames
-      ];
+      if (format === 'xlsx') {
+        XLSX.writeFile(workbook, `${fileName}.xlsx`);
+      } else {
+        XLSX.writeFile(workbook, `${fileName}.csv`, { bookType: 'csv' });
+      }
 
-      const formattedRow = rowData.map(cell => escapeCsv(cell as string)).join(',');
-      csvRows.push(formattedRow);
-    });
-
-    const csvContent = csvRows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `SMILE_FEST_Transactions_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success('Laporan halaman ini berhasil diunduh!');
+      toast.success('Laporan berhasil diunduh!', { id: toastId });
+    } catch (error) {
+      toast.error('Gagal mengunduh laporan data', { id: toastId });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -130,7 +192,6 @@ export default function TransactionPage() {
     }
   };
 
-  // Helper Pagination Numbers Generator
   const generatePaginationNumbers = () => {
     if (!pagination) return [];
     
@@ -194,13 +255,36 @@ export default function TransactionPage() {
             </select>
           </div>
           
-          <button 
-            onClick={handleDownloadCsv}
-            disabled={isLoading || !transactions || transactions.length === 0}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-ringkai-text text-white px-5 py-2.5 rounded-xl font-medium hover:bg-stone-700 transition-colors disabled:opacity-50 shadow-soft whitespace-nowrap"
-          >
-            <Download className="w-4 h-4" /> CSV 
-          </button>
+          {/* EXPORT DROPDOWN MENU */}
+          <div className="relative w-full sm:w-auto" ref={exportMenuRef}>
+            <button 
+              onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+              disabled={isLoading || isExporting || !transactions || transactions.length === 0}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-ringkai-text text-white px-5 py-2.5 rounded-xl font-medium hover:bg-stone-700 transition-colors disabled:opacity-50 shadow-soft whitespace-nowrap"
+            >
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isExporting ? 'Mengekspor...' : 'Download'}
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isExportMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                <button 
+                  onClick={() => handleExport('xlsx')}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-stone-700 hover:bg-stone-50 transition-colors text-left font-medium"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> (.xlsx)
+                </button>
+                <div className="border-t border-stone-100"></div>
+                <button 
+                  onClick={() => handleExport('csv')}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-stone-700 hover:bg-stone-50 transition-colors text-left font-medium"
+                >
+                  <FileText className="w-4 h-4 text-stone-500" /> (.csv)
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
