@@ -140,13 +140,27 @@ export default function ScannerPage() {
       const msg = error.response?.data?.meta?.message || error.response?.data?.error || 'Tiket Tidak Ditemukan';
       const isDuplicate = msg.toLowerCase().includes('sudah') || msg.toLowerCase().includes('scanned');
       
+      // Ambil data dari response error backend
       const errorData = error.response?.data?.data;
-      const errorName = errorData?.customer_name || 'Identitas Tidak Ditemukan';
+      
+      // Trik Fallback: Jika errorData.customer_name kosong, kita ekstrak nama dari teks pesan "Tiket atas nama [Nama] sudah..."
+      let errorName = errorData?.customer_name;
+      if (!errorName && isDuplicate) {
+        const match = msg.match(/Tiket atas nama (.+?) sudah/);
+        if (match && match[1]) {
+          errorName = match[1];
+        }
+      }
+      
+      // Jika tetap tidak ketemu, baru gunakan teks default
+      if (!errorName) {
+        errorName = isDuplicate ? 'Peserta Terdaftar' : 'Tidak Dikenali';
+      }
       
       setModalResult({
         status: isDuplicate ? 'duplicate' : 'error',
         title: isDuplicate ? 'TIKET KADALUARSA' : 'AKSES DITOLAK',
-        name: isDuplicate ? errorName : 'Tidak Dikenali',
+        name: errorName,
         message: msg
       });
     }
