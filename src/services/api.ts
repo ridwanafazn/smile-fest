@@ -97,5 +97,9 @@ export const transactionService = {
     // Karena interceptor Anda mengembalikan objek utuh 'response' saat ada properti pagination,
     // Kita panggil .then(res => res.data) agar query function TanStack Query langsung menerima { data: [...], pagination: {...} }
     return api.get('/api/admin/transactions/insights', { params }).then(res => res.data);
+  },
+
+  blastEmail: async () => {
+    return api.post('/api/admin/transactions/blast-email');
   }
 };
