@@ -64,7 +64,24 @@ export default function ScannerPage() {
     queryFn: async () => {
       try {
         const res = await api.get('/api/scanner/history');
-        return res.data as ScanHistoryItem[];
+        const rawHistory = res.data as ScanHistoryItem[];
+        
+        return rawHistory.map((item) => {
+          if (item.source === 'local') return item;
+
+          const parts = item.time.split(':');
+          if (parts.length >= 2) {
+            let hour = (parseInt(parts[0], 10) + 7) % 24;
+            const formattedHour = hour.toString().padStart(2, '0');
+            
+            return {
+              ...item,
+              time: `${formattedHour}:${parts[1]}:${parts[2] || '00'}`
+            };
+          }
+          
+          return item;
+        });
       } catch (e) {
         return [];
       }
@@ -403,7 +420,9 @@ export default function ScannerPage() {
                 {modalResult.status === 'duplicate' && <AlertTriangle className="w-20 h-20 mb-4" />}
                 {modalResult.status === 'error' && <XCircle className="w-20 h-20 mb-4" />}
                 
-                <h3 className="text-2xl font-serif tracking-widest">{modalResult.title}</h3>
+                <h3 className="text-2xl font-serif font-bold tracking-widest text-white drop-shadow-sm">
+                  {modalResult.title}
+                </h3>
               </div>
 
               <div className="p-8 w-full flex flex-col items-center">
